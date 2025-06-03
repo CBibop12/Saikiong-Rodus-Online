@@ -1,0 +1,360 @@
+/* styles.css */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: "Opirus Sans", sans-serif;
+  color: white;
+  background-color: #transparent;
+}
+
+@font-face {
+  font-family: "Opirus Sans";
+  src: url("../assets/fonts/OpirusOpikRegular-RgDv.ttf") format("truetype");
+}
+
+body {
+  background-color: rgb(118, 66, 28);
+}
+
+.landing-container {
+  display: flex;
+  min-height: 100vh;
+  background-image: url("../assets/images/mainMenu.jpg");
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.left-section {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.5);
+  color: #fff;
+}
+
+.game-title {
+  font-size: 4rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  margin-bottom: 2rem;
+  font-family: "Zen Dots", sans-serif;
+}
+
+.right-section {
+  width: 50%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: .5rem;
+  background-color: rgba(84, 45, 16, 0.7);
+  backdrop-filter: blur(10px);
+  border-left: 2px solid #FFD700;
+  padding: 2rem;
+}
+
+.menu-button {
+  width: 80%;
+  padding: 1rem;
+  font-size: 1.4rem;
+  background: linear-gradient(to bottom,rgb(118, 66, 28),rgb(64, 40, 15));
+  border: 2px solid #D4AF37;
+  color: #D4AF37;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin: 0 auto;
+  font-weight: 600;
+}
+
+.logo-container {
+  width: 60%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 2.5rem;
+  position: relative;
+}
+
+.logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.menu-button svg path{
+  color: #D4AF37;
+}
+
+.menu-button:hover {
+  background: #D4AF37;
+  color: rgb(118, 66, 28);
+  text-shadow: none;
+}
+
+.menu-button:hover svg path{
+  color: rgb(118, 66, 28);
+}
+
+.menu-button.disabled {
+  border-color: #444;
+  color: #444;
+  cursor: not-allowed;
+}
+
+.menu-button.disabled:hover {
+  background: none;
+  color: #444;
+}
+
+.auth-form {
+  width: 80%;
+  max-width: 400px;
+  margin-top: 2rem;
+}
+
+.auth-input {
+  width: 100%;
+  padding: 0.8rem;
+  margin-bottom: 1rem;
+  background: none;
+  border: 1px solid #333;
+  color: #fff;
+  font-size: 1.4rem;
+}
+
+.auth-input:focus {
+  border-color: #fff;
+  outline: none;
+}
+
+.auth-button {
+  width: 100%;
+  padding: 0.8rem;
+  background: #fff;
+  color: #000;
+  border: none;
+  cursor: pointer;
+  font-size: 1.4rem;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+
+.auth-toggle {
+  color: #666;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 1rem;
+}
+.join-room-container {
+  width: 80%;
+}
+.join-room-container button {
+  margin: 0 auto
+}
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal {
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  position: relative;
+  background: linear-gradient(to bottom,rgb(118, 66, 28),rgb(64, 40, 15));
+  border: 2px solid white;
+  gap: 1rem
+}
+
+.modal-close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: transparent;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+}
+
+.menu-button {
+  margin: 10px 0;
+}
+.modal h2 {
+  margin-bottom: 15px
+}
+.divider {
+  width: 80%;
+  margin: 20px auto;
+  color: #222;
+}
+
+.file-upload-zone {
+  width: 80%;
+  max-width: 500px;
+  height: 200px;
+  border: 2px dashed #D4AF37;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  margin-bottom: 2rem;
+  transition: all 0.3s ease;
+  background-color: rgba(118, 66, 28, 0.5);
+  backdrop-filter: blur(10px);
+  color: #D4AF37;
+}
+
+.file-upload-zone p{
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #D4AF37;
+}
+
+.file-upload-zone.dragging {
+  border-color:rgb(120, 230, 30);
+  background-color: rgba(120, 230, 30, 0.05);
+}
+
+.upload-icon {
+  color: #D4AF37;
+  margin-bottom: 0.5rem;
+}
+
+.file-upload-button {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.8rem 1.5rem;
+  background-color: rgb(118, 66, 28);
+  border: 1px solid #D4AF37;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: #D4AF37;
+}
+
+.file-upload-button:hover {
+  background-color: #D4AF37;
+  border-color: #D4AF37;
+  color: rgb(118, 66, 28);
+}
+
+.hidden-input {
+  display: none;
+}
+
+.error-message {
+  color: #ff4444;
+  margin-top: 1rem;
+  padding: 0.5rem 1rem;
+  background-color: rgba(255, 68, 68, 0.1);
+  border-radius: 4px;
+}
+
+.rooms-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 1rem;
+  width: 100%;
+  padding: 1rem;
+  list-style: none;
+}
+
+.room-card {
+  background-color: #111;
+  border: 1px solid #333;
+  border-radius: 6px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  transition: all 0.3s ease;
+}
+
+.room-card:hover {
+  border-color: #666;
+  transform: translateY(-2px);
+}
+
+.room-number {
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.join-button {
+  background-color: #222;
+  border: 1px solid #444;
+  padding: 0.6rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.join-button:hover {
+  background-color: #333;
+  border-color: #666;
+}
+
+.menu-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.8rem;
+}
+
+.stats-button {
+  border-color: #9C27B0;
+}
+
+.stats-button:hover {
+  background-color: #9C27B0;
+}
+
+.no-rooms {
+  text-align: center;
+  color: #666;
+  margin-top: 2rem;
+}
+
+.advice-carousel {
+  position: absolute;
+  width: 300px;
+  border: 2px solid #D4AF37;
+  padding: 1rem;
+  background: linear-gradient(to bottom,rgb(118, 66, 28),rgb(64, 40, 15));
+  color: #D4AF37;
+  right: -30%;
+  bottom: 0;
+}
+
+.advice-text {
+  font-size: 1.2rem;
+  font-weight: 500;
+}
+
+.advice-carousel h1 {
+  font-size: 20px;
+  font-weight: 500;
+  text-align: center;
+  margin-bottom: 1rem;
+  color: #D4AF37;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  padding: 1rem;
+  border-bottom: 2px solid #D4AF37;
+}

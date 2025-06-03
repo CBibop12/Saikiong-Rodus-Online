@@ -1,0 +1,109 @@
+.game-header {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 50px;
+  background-color: transparent;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 600;
+  margin: 5px 0;
+  z-index: 100;
+}
+
+.game-header__left {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.baseHp {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 250px;
+  height: 30px;
+}
+
+.baseHpBar {
+  display: flex;
+  justify-content: left;
+  align-items: center;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 100px;
+  background: linear-gradient(to top,rgb(108, 52, 12),rgb(65, 41, 17));
+  overflow: hidden;
+  border: 2px solid #D4AF37;
+}
+
+.baseHpBar .base-fill {
+  height: 100%;
+}
+
+.baseHpBar.red .base-fill {
+  background-color: rgb(146, 45, 29);
+}
+
+.baseHpBar.blue .base-fill {
+  background-color: rgb(32, 99, 119);
+}
+
+.baseHpBar .baseHp__hp {
+  position: absolute;
+  left:50%;
+  transform: translateX(-50%);
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 16px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.characters-array {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 30px;
+    margin: 0 15px;
+}
+
+.characters-array__red-character {
+    background-color: red;
+}
+
+.characters-array__blue-character {
+    background-color: blue;
+}
+
+.header-character {
+    background-color: transparent;
+    height: 30px;
+    width: 30px;
+    overflow: hidden;
+}
+
+.header-character img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.time-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-width: 100px;
+}
+
+.time-text {
+    font-size: 24px;
+    font-weight: 600;
+    color: #fff;
+}

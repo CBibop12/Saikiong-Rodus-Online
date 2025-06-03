@@ -1,0 +1,224 @@
+.rules-container {
+  display: flex;
+  min-height: 100vh;
+  background: rgb(65, 31, 7); /* Немного светлее чем чёрный */
+  color: #D4AF37; /* Серый вместо белого */
+}
+
+.rules-content-text {
+  font-size: 1.8rem;
+  line-height: 1.2;
+  color:rgb(199, 199, 199);
+}
+
+.rules-subcontent-text {
+  font-size: 1.5rem;
+  color:rgb(199, 199, 199);
+}
+
+.rules-title {
+  font-size: 2.5rem;
+  color: #D4AF37;
+  font-weight: 600;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  border-bottom: 1px solid #D4AF37;
+}
+
+.rules-subtitle {
+  font-size: 26px;
+  color: #D4AF37;
+  font-weight: 600;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+.rules-nav {
+  width: 300px;
+  padding: 20px;
+  background: rgb(83, 42, 13);
+  border-right: 2px solid #D4AF37;
+  position: fixed;
+  height: 100vh;
+  overflow-y: auto;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  font-size: 20px;
+  color:rgb(147, 147, 147);
+  cursor: pointer;
+  height: 40px;
+  width: 40px;
+  border-radius: 4px;
+}
+
+.back-button:hover {
+  color: #fff;
+  background-color: #222;
+  border: 1px solid #333;
+}
+
+.search-box {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 12px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  color: #e0e0e0;
+  border-radius: 4px;
+  font-size: 20px;
+}
+
+.search-container {
+  position: relative;
+  margin-bottom: 20px;
+}
+
+.search-container.console input {
+  position: static;
+  width: 100%;
+}
+
+.search-box {
+  align-items: center;
+  gap: 10px;
+}
+
+.search-info {
+  color: #888;
+  font-size: 20px;
+  white-space: nowrap;
+  margin-left: 10px;
+  margin-top: 10px;
+}
+
+.search-navigation {
+  position: absolute;
+  right: 10px;
+  top: 35%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 5px;
+}
+
+.search-navigation button {
+  background: none;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 5px;
+  font-size: 16px;
+  align-self: center;
+}
+
+.search-navigation button:hover {
+  color: #ccc;
+}
+
+.highlight-current {
+  background-color: #f4a261;
+  color: #000;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+mark {
+  background-color: rgba(244, 162, 97, 0.3);
+  color: inherit;
+  border-radius: 2px;
+  padding: 0 2px;
+}
+
+.sections-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.section-item a {
+  color: #e0e0e0;
+  text-decoration: none;
+  display: block;
+  padding: 8px 0;
+  transition: color 0.2s;
+  font-size: 28px;
+}
+
+.section-item a:hover {
+  color: #fff;
+}
+
+.subsection-link {
+  padding-left: 20px !important;
+  font-size: 20px !important;
+  color: #999 !important;
+}
+
+.rules-content {
+  flex: 1;
+  padding: 40px 40px 40px 340px;
+  line-height: 1.8; /* Увеличили межстрочный интервал */
+  font-size: 17px; /* Увеличили размер шрифта */
+  max-width: 1200px; /* Ограничили максимальную ширину для удобства чтения */
+  margin: 0 auto;
+}
+
+.rules-content section {
+  margin-bottom: 50px;
+}
+
+.rules-content h2 {
+  font-size: 28px;
+  margin-bottom: 25px;
+  border-bottom: 1px solid #D4AF37;
+  padding-bottom: 15px;
+  color: #D4AF37;
+  font-weight: 600;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.rules-content h3 {
+  font-size: 22px;
+  margin: 30px 0 20px;
+  color: #D4AF37;
+  font-weight: 600;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.rules-content p {
+  margin-bottom: 16px;
+}
+
+/* Стили для маркированных списков */
+.rules-content ul,
+.rules-content ol {
+  margin: 16px 0;
+  padding-left: 24px;
+}
+
+.rules-content li {
+  margin-bottom: 8px;
+}
+
+/* Добавляем отступы для маркированных пунктов */
+.rules-content p:has(+ p:first-letter:matches(●, ○)) {
+  margin-bottom: 24px;
+}
+/* В rulesStyle.css */
+.rules-content {
+  white-space: pre-wrap; /* Сохраняем переносы строк */
+}
+
+/* Стили для маркированных списков */
+.rules-content p:has(+ p:first-letter:matches(●, ○)) {
+  margin-bottom: 1em;
+}
+
+.rules-content p[data-marker]::before {
+  content: attr(data-marker);
+  margin-right: 0.5em;
+}

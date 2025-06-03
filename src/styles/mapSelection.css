@@ -1,0 +1,527 @@
+/* MapSelection.css */
+.map-selection-container {
+  background: url('/src/assets/images/mapChoose.png') no-repeat center center fixed;
+  background-size: cover;
+  min-height: 100vh;
+}
+
+.positioning-page {
+  position: relative;
+  width: 100%;
+}
+
+.positioning-image {
+  position: fixed;
+  width: 100%;
+  height: 100vh;
+}
+
+.positioning-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.positioning-overlay {
+  backdrop-filter: blur(4px);
+  width: 100%;
+  height: 100vh;
+}
+
+.map-overlay {
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  height: 100vh;
+  backdrop-filter: blur(10px);
+}
+
+.map-header {
+  text-align: center;
+  margin-bottom: 2rem;
+  padding-top: 2rem;
+}
+.map-header.mini {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  gap: 20px;
+  align-items: center;
+}
+
+.map-header h1 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  font-size: 2.5rem;
+  margin-bottom: 0.5rem;
+  color: #D4AF37;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  font-weight: 600;
+  font-size: 40px;
+}
+
+.map-image {
+  width: 55%;
+  object-fit: cover;
+}
+
+.map-image img {
+  width: 100%;
+  height: 100%;
+  box-shadow: 0 0 10px rgba(109, 80, 6, 0.97);
+}
+
+.map-icon {
+  color: #666;
+}
+
+.map-header h2 {
+  font-size: 28px;
+  color: #D4AF37;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.map-info {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+}
+
+.map-info span {
+  color: #D4AF37;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  font-size: 1.5rem;
+}
+
+.map-navigation {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 60vh;
+  max-width: 1100px;
+  gap: 2rem;
+  width: 100%;
+  background-image: url('/src/assets/images/mapBackground.png');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.nav-button {
+  background: none;
+  background-color: rgb(118, 66, 28);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  border: 1px solid #D4AF37;
+  height: 10vh;
+  transition: all 0.3s ease;
+}
+
+.nav-button:hover {
+  background-color:rgb(114, 90, 12);
+  box-shadow: none;
+}
+
+.map-preview {
+  display: grid;
+  gap: 1px;
+  background-color: #222;
+  padding: 1px;
+  width: 100%;
+  aspect-ratio: 16/9;
+  margin-bottom: 30px;
+}
+
+.map-preview.preview-advanced {
+  aspect-ratio: 40/24;
+  max-width: 900px;
+  margin: 0 auto 50px;
+  border: 2px solid rgb(212, 175, 55);
+  box-shadow: 0 0 15px rgba(212, 175, 55, 0.7);
+}
+.cell-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.grid-cell {
+  position: absolute;
+  /* top: 0;
+  left: 0; */
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  transition: all 0.3s ease;
+}
+
+/* Existing cell styles remain the same */
+.grid-cell.empty {
+  background-color: #000000;
+}
+
+.grid-cell.wall {
+  background-color: #333333;
+}
+
+.grid-cell.red-base {
+  background-color: #cc0000;
+}
+
+.grid-cell.blue-base {
+  background-color: #0066cc;
+}
+
+.grid-cell.magic-shop {
+  background-color: #663399;
+}
+
+.grid-cell.armory {
+  background-color: #cc6600;
+}
+
+.grid-cell.laboratory {
+  background-color: #00ccff;
+}
+
+.grid-cell.bush {
+  background-color: #006600;
+}
+
+.grid-cell.healing-zone {
+  background-color: #33cc33;
+}
+
+/* Portal and church styles remain the same */
+.portal-circle {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 16px;
+  height: 16px;
+  background-color: white;
+  border-radius: 50%;
+}
+
+.church-cross {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 20px;
+  background-color: transparent;
+}
+
+.church-cross.green {
+  color: #33cc33;
+}
+
+.map-actions {
+  margin-top: 2rem;
+}
+
+.select-button {
+  padding: 1rem 3rem;
+  font-size: 24px;
+  background: rgb(86, 44, 14);
+  border: 2px solid #D4AF37;
+  color: #D4AF37;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.select-button:hover {
+  background: #D4AF37;
+  color: rgb(118, 66, 28);
+  text-shadow: none;
+}
+
+.positioning-teams {
+  padding: 2rem;
+  background: linear-gradient(to bottom, rgb(82, 42, 13), rgb(33, 19, 5));
+  border: 1px solid #D4AF37;
+}
+
+.positioning-teams h2 {
+  color: #D4AF37;
+  font-size: 30px;
+  margin-bottom: 2rem;
+  text-align: center;
+  font-weight: 500;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.teams-container {
+  display: flex;
+  gap: 2rem;
+}
+
+.team {
+  flex: 1;
+  padding: 1.5rem;
+  background-color: rgba(182, 73, 6, 0.15);
+  border: 1px solid #D4AF37;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  margin-bottom: 20px;
+}
+
+.team h3 {
+  font-size: 1.8rem;
+  color: #D4AF37;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  margin-bottom: 1.5rem;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid #D4AF37;
+}
+
+.team.team1 .positioning-character {
+  border-left: 3px solid #942b2b;
+}
+
+.team.team2 .positioning-character {
+  border-left: 3px solid #1a5896;
+}
+
+.positioning-character {
+  position: relative;
+  padding: 10px;
+  margin: 5px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background: rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.positioning-character.selected {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2);
+}
+
+.positioning-character::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-size: cover;
+  background-position: center;
+  opacity: 0.15;
+  filter: grayscale(30%);
+  z-index: 1;
+}
+
+.positioning-character .char-info {
+  position: relative;
+  z-index: 2;
+}
+
+.positioning-character .char-name {
+  display: block;
+  color: #fff;
+  font-weight: 500;
+  margin-bottom: 4px;
+  font-size: 1.5rem;
+}
+
+.positioning-character .position-display {
+  display: block;
+  color: #aaa;
+  font-size: 1.5rem;
+}
+
+.positioned-character, .positioned-object {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 2;
+}
+
+.positioned-character {
+  height: 150%;
+  top: -50%;
+}
+
+.character-image, .object-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  transition: transform 0.3s ease;
+}
+
+.building-image {
+  object-fit: unset;
+}
+
+.character-image:hover {
+  transform: scale(1.1);
+  opacity: 1;
+}
+
+.character-image.red-team {
+  border-bottom: 2px solid #ff4444;
+}
+
+.character-image.blue-team {
+  border-bottom: 2px solid #4444ff;
+}
+
+.character-name {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  font-size: 0.8rem;
+  text-align: center;
+  padding: 2px 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Анимация для выбранного персонажа */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.1);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+.positioning-character.selected {
+  animation: pulse 2s infinite;
+}
+.confirm-positions-button {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1rem 2.5rem;
+  font-size: 1.5rem;
+  font-weight: 500;
+  color: #fff;
+  background: linear-gradient(135deg, #4caf50 0%, #45a049 100%);
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.2);
+  /* Убедимся, что кнопка всегда поверх других элементов */
+  z-index: 100;
+}
+
+.confirm-positions-button:hover {
+  transform: translateX(-50%) translateY(-2px);
+  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.3);
+  background: linear-gradient(135deg, #45a049 0%, #419544 100%);
+}
+
+.confirm-positions-button:active {
+  transform: translateX(-50%) translateY(0);
+  box-shadow: 0 2px 10px rgba(76, 175, 80, 0.2);
+}
+
+/* Добавим дизейбл стиль */
+.confirm-positions-button:disabled {
+  background: linear-gradient(135deg, #666 0%, #555 100%);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+/* Добавим анимацию пульсации для привлечения внимания */
+@keyframes buttonPulse {
+  0% {
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.2);
+  }
+  50% {
+    box-shadow: 0 4px 25px rgba(76, 175, 80, 0.4);
+  }
+  100% {
+    box-shadow: 0 4px 15px rgba(76, 175, 80, 0.2);
+  }
+}
+
+.confirm-positions-button {
+  animation: buttonPulse 2s infinite;
+}
+
+/* Стили для выпадающего списка */
+.character-dropdown {
+  background: rgba(118, 66, 28, 0.9);
+  border: 1px solid #D4AF37;
+  min-width: 200px;
+  backdrop-filter: blur(5px);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.5);
+  z-index: 1011;
+}
+
+.dropdown-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.8rem 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.dropdown-item:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.dropdown-item .char-name {
+  color: #fff;
+  font-weight: 500;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+  font-size: 1.1rem;
+}
+
+.dropdown-item .char-type {
+  color: #fff;
+  font-size: 1rem;
+}
+
+/* Стили для подсветки при наведении */
+.cell-wrapper.hovered {
+  outline: 2px solid rgba(255, 255, 255, 0.3);
+  z-index: 1;
+}
+
+/* Анимация появления дропдауна */
+@keyframes dropdownAppear {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 10px);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, 20px);
+  }
+}
+
+.character-dropdown {
+  animation: dropdownAppear 0.2s ease-out;
+}
+
+.grid-cell.red-church-powerpoint, .grid-cell.blue-church-powerpoint {
+  background-image: url('/src/assets/cells/churchCheckpoint.png');
+  background-size: cover;
+  background-position: center;
+}

@@ -1,0 +1,58 @@
+.game-context-menu__item--church {
+  background-color: rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: default;
+  opacity: 0.8;
+}
+.game-context-menu__item--church:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.game-context-menu__item--mana {
+  background-color: rgba(147, 112, 219, 0.1);
+  border-bottom: 1px solid rgba(147, 112, 219, 0.15);
+  cursor: default;
+  opacity: 0.8;
+}
+.game-context-menu__item--mana:hover {
+  background-color: rgba(147, 112, 219, 0.1);
+}
+
+.game-context-menu__item--switch {
+  background-color: rgba(255, 255, 255, 0.05);
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+.game-context-menu__item--switch:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+.game-context-menu__header {
+  padding: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: rgba(0, 0, 0, 0.2);
+}
+
+.game-context-menu__header-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.game-context-menu__header-subtitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.game-context-menu__header-icon {
+  font-size: 16px;
+} 
+.game-context-menu__header-title {
+  display: inline-block;
+}
