@@ -329,7 +329,7 @@ const executeCommand = (object, context) => {
       item !== "Броня" &&
       item !== "Усиление урона"
     ) {
-      charObj.inventory.push({...itemData, id: generateId() });
+      charObj.inventory.push({...itemData, left: item === "Стена (х3)" ? 3 : undefined, id: generateId() });
     }
 
     matchState.teams[findCharacter(characterName).team].remain.actions -= 1;
@@ -1060,15 +1060,40 @@ const executeCommand = (object, context) => {
   // 13. Команда возведения постройки
   // ─────────────────────────────────────────────
   if (commandType === "build") {
+
     build(findCharacter(characterName), matchState, {
-      
+      position: commandObject.position,
+      affiliate: "neutral",
+      image: commandObject.image,
+      initial: commandObject.initial,
+      name: commandObject.name || "Постройка",
+      description: commandObject.description || "Конструкция былых времен",
+      type: "building",
+      stats: {
+          HP: commandObject.stats?.HP || 0,
+          Урон: commandObject.stats?.Урон || 0,
+          Мана: commandObject.stats?.Мана || 0,
+          Ловкость: commandObject.stats?.Ловкость || 0,
+          Броня: commandObject.stats?.Броня || 0,
+          Дальность: commandObject.stats?.Дальность || 0,
+        },
+      currentHP: commandObject.currentHP || 0,
+      currentMana: commandObject.currentMana || 0,
+      currentDamage: commandObject.currentDamage || 0,
+      currentAgility: commandObject.currentAgility || 0,
+      currentArmor: commandObject.currentArmor || 0,
+      currentRange: commandObject.currentRange || 0,
+      onBuild: commandObject.onBuild || (() => {}),
+      onFinishTurn: commandObject.onFinishTurn || (() => {}),
+      onCharactersInZone: commandObject.onCharactersInZone || (() => {}),
+      onHit: commandObject.onHit || (() => {}),
+      onDestroy: commandObject.onDestroy || (() => {}),
     })
   }
   
   // ─────────────────────────────────────────────
   // 14. Обработка нераспознанной команды (generic)
   // ─────────────────────────────────────────────
-  addActionLog(`Нераспознанная команда: ${commandText}`);
 }
 };
 

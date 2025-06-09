@@ -64,6 +64,9 @@ function getMapOverlaysFromObjects(matchState, selectedMapSize) {
   return overlays;
 }
 
+const RANGE_OF_THROWABLE_OBJECTS = 5;
+const RANGE_OF_BUILDING_OBJECTS = 1;
+
 const ChatConsole = ({ teams, selectedMap }) => {
   // Состояния для ввода текста, подсказок и сообщений
   const [inputValue, setInputValue] = useState("");
@@ -109,7 +112,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
   const [throwableCells, setThrowableCells] = useState([]);
   const [selectionOverlay, setSelectionOverlay] = useState([]);
   const [beamCells, setBeamCells] = useState([]);
-  const [pendingMode, setPendingMode] = useState(null);
+  const [pendingMode, setPendingMode] = useState(null); //move, attack, throw, build
   const [dynamicTooltip, setDynamicTooltip] = useState(null);
   // Состояние для поиска сообщений
   const [searchQuery, setSearchQuery] = useState("");
@@ -142,8 +145,8 @@ const ChatConsole = ({ teams, selectedMap }) => {
   const [showCharacterInfoPanel, setShowCharacterInfoPanel] = useState(false);
   const [clickedEffectOnPanel, setClickedEffectOnPanel] = useState(null)
 
-    const [lastNotification, setLastNotification] = useState(null);  
-    const [attackAnimations, setAttackAnimations] = useState([]);
+  const [lastNotification, setLastNotification] = useState(null);
+  const [attackAnimations, setAttackAnimations] = useState([]);
   // ─────────────────────────────────────────────
   // 2) Для временной зоны, которую игрок наводит мышкой/подтверждает и т.п.
   //    Обычно этот массив мы очищаем, когда «подтверждение» произошло или отмена.
@@ -153,7 +156,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
     // пытаемся восстановить партию
     const saved = localStorage.getItem('matchState');
     if (saved) return JSON.parse(saved);
-  
+
     // стартовая инициализация
     return {
       teams: {
@@ -162,8 +165,8 @@ const ChatConsole = ({ teams, selectedMap }) => {
             actions: 1,
             moves: 1,
           },
-          baseHP : 1500,
-          gold   : 0,
+          baseHP: 1500,
+          gold: 0,
           characters: teams.team1.map(ch => ({
             ...ch,
             team: 'red',
@@ -177,8 +180,8 @@ const ChatConsole = ({ teams, selectedMap }) => {
             actions: 1,
             moves: 1,
           },
-          baseHP : 1500,
-          gold   : 0,
+          baseHP: 1500,
+          gold: 0,
           characters: teams.team2.map(ch => ({
             ...ch,
             team: 'blue',
@@ -192,15 +195,15 @@ const ChatConsole = ({ teams, selectedMap }) => {
         actionsPerTurn: 1,
         movesPerTurn: 1,
       },
-      actions      : [],
-      turn         : 1,
-      selectedMap  : selectedMap.name,
-      status       : 'in_process',
-      gameDuration : 0,
-      objectsOnMap : [],
-      churches     : [
+      actions: [],
+      turn: 1,
+      selectedMap: selectedMap.name,
+      status: 'in_process',
+      gameDuration: 0,
+      objectsOnMap: [],
+      churches: [
         {
-          coordinates: selectedMap.churches?.red  || "n-n",
+          coordinates: selectedMap.churches?.red || "n-n",
           powerpoint: selectedMap.churches?.redPowerpoint || "n-n",
           currentAffiliation: "red",
           turnsRemain: 3,
@@ -245,6 +248,11 @@ const ChatConsole = ({ teams, selectedMap }) => {
   const [teleportationCells, setTeleportationCells] = useState([]);
   const [teleportationDestination, setTeleportationDestination] = useState(null);
 
+  // Состояния для возведения построек
+  const [buildingMode, setBuildingMode] = useState(false);
+  const [buildingCells, setBuildingCells] = useState([]);
+  const [buildingDestination, setBuildingDestination] = useState([]);
+
   const [store, setStore] = useState(null);
 
   const [finalWindow, setFinalWindow] = useState(false)
@@ -258,8 +266,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
       localStorage.setItem("teamTurn", result);
       localStorage.setItem("firstTeamToAct", result);
       addActionLog(
-        `🪙 Бросок монетки! Первыми ходят ${
-          result === "red" ? "Красные" : "Синие"
+        `🪙 Бросок монетки! Первыми ходят ${result === "red" ? "Красные" : "Синие"
         }!`
       );
     }
@@ -333,7 +340,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
 
   const handleFinale = () => {
     if (matchState.status.includes("destroyed") || matchState.teams.red.characters.filter(ch => ch.currentHP > 0).length === 0 || matchState.teams.blue.characters.filter(ch => ch.currentHP > 0).length === 0) {
-    setFinalWindow(true)
+      setFinalWindow(true)
     }
   }
 
@@ -371,69 +378,69 @@ const ChatConsole = ({ teams, selectedMap }) => {
     if (pointSelectionMode && pendingPointEffect) {
       return pointCells.includes(cell);
     }
-    
+
     // Если включён режим выбора луча, используем pendingBeamEffect, иначе — pendingZoneEffect
     const effect = beamSelectionMode ? pendingBeamEffect : pendingZoneEffect;
     if (!effect) return false;
-    
+
     const [startCol, startRow] = effect.caster.position.split("-").map(Number);
     const [pointX, pointY] = cell.split("-").map(Number);
-    
+
     if (effect.type === "Луч" && !beamFixed) {
       // Нельзя направлять луч в ту же клетку, что и персонаж
       if (pointX === startCol && pointY === startRow) return false;
-      
+
       // Допускаются только горизонтальные или вертикальные направления:
       // Если ни столбцы, ни строки не совпадают, значит направление диагональное – возвращаем false.
       if (pointX !== startCol && pointY !== startRow) return false;
-      
+
       // Проверка, что клетка находится в пределах разрешённой дальности
       const distance = Math.max(Math.abs(pointX - startCol), Math.abs(pointY - startRow));
       if (distance > effect.range) return false;
-      
+
       // Проверяем только первую смежную клетку от заклинателя
       const stepX = pointX > startCol ? 1 : pointX < startCol ? -1 : 0;
       const stepY = pointY > startRow ? 1 : pointY < startRow ? -1 : 0;
-      
+
       const nextX = startCol + stepX;
       const nextY = startRow + stepY;
-      
+
       const nextCell = selectedMap.map[nextY - 1]?.[nextX - 1];
       if (pendingBeamEffect.canGoThroughWalls == false) {
-        if (!nextCell || 
+        if (!nextCell ||
           (nextCell.initial !== "empty" &&
-           nextCell.initial !== "blue portal" &&
-           nextCell.initial !== "red portal" &&
-           nextCell.initial !== "healing zone" &&
-           nextCell.initial !== "bush")) {
+            nextCell.initial !== "blue portal" &&
+            nextCell.initial !== "red portal" &&
+            nextCell.initial !== "healing zone" &&
+            nextCell.initial !== "bush")) {
           return false;
         }
       }
       return true;
     }
-    
+
     // Логика для остальных эффектов (например, зоновых способностей)
     const range = effect.caster.type === "Маг"
       ? effect.caster.currentRange
       : effect.coordinates === "dynamic"
         ? 0
         : effect.coordinates;
-    
+
     // Проверка для вертикальной линии
     if (pointX === startCol && Math.abs(pointY - startRow) <= range) return true;
-    
+
     // Проверка для горизонтальной линии
     if (pointY === startRow && Math.abs(pointX - startCol) <= range) return true;
-    
+
     return false;
   };
-  
+
   // Пример: когда игрок наводит мышку (handleCellMouseEnter) в режиме выбора,
   // мы наполняем selectionOverlay.
   const handleCellMouseEnter = (cellCoord) => {
     if ((!zoneSelectionMode && !beamSelectionMode && !teleportationMode) || zoneFixed || beamFixed) {
       setHoveredCell(cellCoord);
-      
+
       // Проверяем, есть ли персонажи на клетке
       const redChar = matchState.teams.red.characters.find(
         (ch) => ch.position === cellCoord && ch.currentHP > 0
@@ -441,11 +448,11 @@ const ChatConsole = ({ teams, selectedMap }) => {
       const blueChar = matchState.teams.blue.characters.find(
         (ch) => ch.position === cellCoord && ch.currentHP > 0
       );
-      
+
       // Получаем информацию о клетке
       const [col, row] = cellCoord.split("-").map(Number);
       const cell = selectedMap.map[row - 1]?.[col - 1];
-      
+
       // Показываем координаты, если клетка пустая, стена или кусты
       // или если на клетке нет персонажей
       if (!redChar && !blueChar && (cell && (cell.initial === "empty" || cell.initial === "wall" || cell.initial === "bush"))) {
@@ -455,7 +462,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         return;
       }
     }
-    
+
     if (teleportationMode && teleportationCells.includes(cellCoord)) {
       setTeleportationDestination(cellCoord);
       return; // прекращаем дальнейшую обработку клика
@@ -465,7 +472,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
       setThrowDestination(cellCoord);
       return;
     }
-    
+
     if (calculateCastingAllowance(cellCoord)) {
       if (beamSelectionMode) {
         if (pendingBeamEffect.type === "Луч с перемещением") {
@@ -565,10 +572,10 @@ const ChatConsole = ({ teams, selectedMap }) => {
       const cell = selectedMap.map[row][col];
       // Если текущая стоимость достигла лимита перемещения, дальнейший обход прекращается
       if (cost >= movementRange) continue;
-      
-      if (cell.initial === "red portal" || cell.initial === "blue portal" ) {
+
+      if (cell.initial === "red portal" || cell.initial === "blue portal") {
         let doesExist = reachableTeleports.find(tp => tp.affiliate === (cell.initial === "red portal" ? "red" : "blue") && tp.coordinates === `${col + 1}-${row + 1}`)
-        if (!doesExist) reachableTeleports.push({affiliate: cell.initial === "red portal" ? "red" : "blue", coordinates: `${col + 1}-${row + 1}`, distanceLeft: movementRange - cost})
+        if (!doesExist) reachableTeleports.push({ affiliate: cell.initial === "red portal" ? "red" : "blue", coordinates: `${col + 1}-${row + 1}`, distanceLeft: movementRange - cost })
       }
       // Стоимость выхода из текущей клетки (учитываем тип клетки: bush – стоимость 2, иначе 1)
       const exitCost = selectedMap.map[row][col].initial === "bush" ? 2 : 1;
@@ -609,7 +616,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
           for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
               if (selectedMap.map[r][c].initial === "red portal" && `${c + 1}-${r + 1}` != tp.coordinates) {
-                portalPair.push({coordinates: `${c + 1}-${r + 1}`, affiliate: "red", distanceLeft: tp.distanceLeft})
+                portalPair.push({ coordinates: `${c + 1}-${r + 1}`, affiliate: "red", distanceLeft: tp.distanceLeft })
               }
             }
           }
@@ -619,64 +626,64 @@ const ChatConsole = ({ teams, selectedMap }) => {
           for (let r = 0; r < rows; r++) {
             for (let c = 0; c < cols; c++) {
               if (selectedMap.map[r][c].initial === "blue portal" && `${c + 1}-${r + 1}` != tp.coordinates) {
-                portalPair.push({coordinates: `${c + 1}-${r + 1}`, affiliate: "blue", distanceLeft: tp.distanceLeft})
+                portalPair.push({ coordinates: `${c + 1}-${r + 1}`, affiliate: "blue", distanceLeft: tp.distanceLeft })
               }
             }
           }
           anotherPortal = portalPair.find(portal => portal.coordinates != tp.coordinates)
         }
 
-          const [startCol, startRow] = anotherPortal.coordinates.split("-").map(Number);
-          const queue = [];
-          const startR = startRow - 1,
-            startC = startCol - 1;
-          costGrid[startR][startC] = 0;
-          queue.push({ row: startR, col: startC, cost: 0 });
-      
-          // Возможные направления перемещения (вверх, вправо, вниз, влево)
-          const directions = [
-            { dr: -1, dc: 0 },
-            { dr: 0, dc: 1 },
-            { dr: 1, dc: 0 },
-            { dr: 0, dc: -1 },
-          ];
-      
-          // Обход клеток с накоплением затрат
-          while (queue.length) {
-            const { row, col, cost } = queue.shift();
-            const cell = selectedMap.map[row][col];
-            // Если текущая стоимость достигла лимита перемещения, дальнейший обход прекращается
-            if (cost >= anotherPortal.distanceLeft) continue;
-            // Стоимость выхода из текущей клетки (учитываем тип клетки: bush – стоимость 2, иначе 1)
-            const exitCost = selectedMap.map[row][col].initial === "bush" ? 2 : 1;
-      
-            // Проверяем соседние клетки
-            for (const { dr, dc } of directions) {
-              const newRow = row + dr;
-              const newCol = col + dc;
-      
-              // Если клетку нельзя посетить, переходим к следующей
-              if (!canEnter(newRow, newCol)) continue;
-      
-              const newCost = cost + exitCost;
-              if (newCost <= anotherPortal.distanceLeft && newCost < costGrid[newRow][newCol]) {
-                costGrid[newRow][newCol] = newCost;
-                queue.push({ row: newRow, col: newCol, cost: newCost });
-              }
+        const [startCol, startRow] = anotherPortal.coordinates.split("-").map(Number);
+        const queue = [];
+        const startR = startRow - 1,
+          startC = startCol - 1;
+        costGrid[startR][startC] = 0;
+        queue.push({ row: startR, col: startC, cost: 0 });
+
+        // Возможные направления перемещения (вверх, вправо, вниз, влево)
+        const directions = [
+          { dr: -1, dc: 0 },
+          { dr: 0, dc: 1 },
+          { dr: 1, dc: 0 },
+          { dr: 0, dc: -1 },
+        ];
+
+        // Обход клеток с накоплением затрат
+        while (queue.length) {
+          const { row, col, cost } = queue.shift();
+          const cell = selectedMap.map[row][col];
+          // Если текущая стоимость достигла лимита перемещения, дальнейший обход прекращается
+          if (cost >= anotherPortal.distanceLeft) continue;
+          // Стоимость выхода из текущей клетки (учитываем тип клетки: bush – стоимость 2, иначе 1)
+          const exitCost = selectedMap.map[row][col].initial === "bush" ? 2 : 1;
+
+          // Проверяем соседние клетки
+          for (const { dr, dc } of directions) {
+            const newRow = row + dr;
+            const newCol = col + dc;
+
+            // Если клетку нельзя посетить, переходим к следующей
+            if (!canEnter(newRow, newCol)) continue;
+
+            const newCost = cost + exitCost;
+            if (newCost <= anotherPortal.distanceLeft && newCost < costGrid[newRow][newCol]) {
+              costGrid[newRow][newCol] = newCost;
+              queue.push({ row: newRow, col: newCol, cost: newCost });
             }
           }
-          
-          for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-              if (costGrid[r][c] <= anotherPortal.distanceLeft) {
-                // Преобразуем координаты в формат "col-row" (1-индекс)
-                if (!reachable.includes(`${c + 1}-${r + 1}`))
+        }
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            if (costGrid[r][c] <= anotherPortal.distanceLeft) {
+              // Преобразуем координаты в формат "col-row" (1-индекс)
+              if (!reachable.includes(`${c + 1}-${r + 1}`))
                 reachable.push(`${c + 1}-${r + 1}`);
-              }
             }
           }
         }
       }
+    }
 
     return reachable;
   };
@@ -742,7 +749,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
           matchState.teams.blue.characters.some(
             (ch) => ch.position === cellPos
           );
-          let object = matchState.objectsOnMap.find((obj) => obj.position === cellPos)
+        let object = matchState.objectsOnMap.find((obj) => obj.position === cellPos)
         // Если клетка имеет тип "empty", "bush" или "healing zone", атака продолжается дальше
         if (!object) {
           attackable.push(cellPos);
@@ -769,7 +776,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         rows = mapSize[1];
       const startX = startCol - 1,
         startY = startRow - 1;
-  
+
       // Получаем клетку, на которой находится персонаж
       const startCell = selectedMap.map[startY][startX];
       // Если персонаж находится в "bush", дальность атаки уменьшается в 2 раза (округляем вверх)
@@ -777,10 +784,10 @@ const ChatConsole = ({ teams, selectedMap }) => {
       if (startCell.initial === "bush") {
         effectiveRange = Math.ceil(range / 2);
       }
-  
+
       // Массив для хранения координат атакуемых клеток в формате "col-row"
       const throwable = [];
-  
+
       // Определяем четыре направления атаки: вверх, вправо, вниз, влево
       const directions = [
         { dx: 0, dy: -1 },
@@ -788,20 +795,20 @@ const ChatConsole = ({ teams, selectedMap }) => {
         { dx: 0, dy: 1 },
         { dx: -1, dy: 0 },
       ];
-  
+
       // Для каждого направления идём клетками до предельного шага effectiveRange
       for (const { dx, dy } of directions) {
         for (let step = 1; step <= effectiveRange; step++) {
           const newX = startX + dx * step;
           const newY = startY + dy * step;
-  
+
           // Проверка выхода за границы карты
           if (newX < 0 || newX >= cols || newY < 0 || newY >= rows) break;
-  
+
           const cell = selectedMap.map[newY][newX];
           // Преобразуем координаты в формат "col-row" (1-индекс)
           const cellPos = `${newX + 1}-${newY + 1}`;
-  
+
           let object = matchState.objectsOnMap.find((obj) => obj.position === cellPos)
 
           if (!object) {
@@ -811,9 +818,21 @@ const ChatConsole = ({ teams, selectedMap }) => {
           }
         }
       }
-  
+
       return throwable;
     };
+  }
+
+  const calculateBuildingCells = (startCoord, character, mapSize) => {
+    const [startCol, startRow] = startCoord.split("-").map(Number);
+    let mapAffiliation = character.team === "red" && startCol < mapSize[0] / 2 || character.team === "blue" && startCol > mapSize[0] / 2;
+    let calcMode = mapAffiliation ? "map" : "range";
+
+    if (calcMode === "map") {
+      return calculateTeleportationCells(startCoord, "half map", mapSize);
+    } else {
+      return calculateThrowableCells(startCoord, 1, mapSize);
+    }
   }
 
   const calculateNearCells = (startCoord) => {
@@ -910,15 +929,18 @@ const ChatConsole = ({ teams, selectedMap }) => {
       setReachableCells([]);
       setAttackableCells(calculateAttackableCells(selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size));
       setThrowableCells([]);
+      setBuildingCells([]);
     }
     if (pendingMode === "move") {
       setAttackableCells([]);
       setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility, selectedMap.size));
       setThrowableCells([]);
+      setBuildingCells([]);
     }
     if (pendingMode === "throw" || pendingMode === "putDown") {
       setAttackableCells([]);
       setReachableCells([]);
+      setBuildingCells([]);
     }
     else if (pendingMode === null) {
       setReachableCells([]);
@@ -987,12 +1009,12 @@ const ChatConsole = ({ teams, selectedMap }) => {
         }
       }
     }
-      
+
     return (
       <div className={`${getCellClassName(cell, churchClass)}`}>
         {character && (
           <div className="positioned-character">
-            <img 
+            <img
               src={`/src/assets/characters/${character.image}`}
               alt={character.name}
               className={`character-image ${redChar ? 'red-team' : 'blue-team'}`}
@@ -1008,14 +1030,14 @@ const ChatConsole = ({ teams, selectedMap }) => {
             />
           </div>
         )}
-        {building && 
+        {building &&
           <div className="positioned-object">
             <img
               src={`/src/assets/cells/${building.image}`}
               className="object-image building-image"
             />
           </div>
-          }
+        }
       </div>
     );
   };
@@ -1110,15 +1132,14 @@ const ChatConsole = ({ teams, selectedMap }) => {
     }
 
     // Если имя найдено – переходим в режим выбора действия
-    let attackString = `атакует на ${selectedChar.stats.Урон} ${
-      selectedChar.type == "Маг"
-        ? "маг.урона"
-        : selectedChar.type == "Меха"
+    let attackString = `атакует на ${selectedChar.stats.Урон} ${selectedChar.type == "Маг"
+      ? "маг.урона"
+      : selectedChar.type == "Меха"
         ? "тех.урона"
         : selectedChar.type == "Стрелок"
-        ? "тех.урона"
-        : "физ.урона"
-    }`;
+          ? "тех.урона"
+          : "физ.урона"
+      }`;
     const standardActions = [
       attackString,
       "использует",
@@ -1279,7 +1300,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
   };
 
   const handleAttackCharacter = (character) => {
-    const result = attack({caster: selectedCharacter}, "neutral", [character], selectedCharacter.currentDamage, selectedCharacter.advancedSettings.damageType, matchState);
+    const result = attack({ caster: selectedCharacter }, "neutral", [character], selectedCharacter.currentDamage, selectedCharacter.advancedSettings.damageType, matchState);
     matchState.teams[selectedCharacter.team].remain.actions -= 1;
 
     if (result.hpDamage > 0) {
@@ -1353,12 +1374,25 @@ const ChatConsole = ({ teams, selectedMap }) => {
     }
   };
 
+  const chooseBuildingPosition = (building) => {
+    setBuildingMode(true);
+    setPendingMode(null);
+    setBuildingCells(calculateBuildingCells(selectedCharacter.position, selectedCharacter, selectedMap.size));
+  }
+
+  const calculateBuildingAllowance = (coordinates) => {    
+    console.log(buildingCells.includes(coordinates) && !buildingDestination.includes(coordinates) && buildingDestination.length < (pendingItem.name === "Стена (х3)" ? pendingItem.left : 1));
+    return buildingCells.includes(coordinates) && !buildingDestination.includes(coordinates) && buildingDestination.length < (pendingItem.name === "Стена (х3)" ? pendingItem.left : 1);
+  }
+
   const handleBuild = (character, building, position) => {
+    console.log(building, position);
     executeCommand({
       characterName: character.name,
       commandType: "build",
       commandObject: {
-        building,
+        ...building,
+        name: building.name === "Стена (х3)" ? "Стена" : building.name,
         position
       },
     }, {
@@ -1408,13 +1442,13 @@ const ChatConsole = ({ teams, selectedMap }) => {
     if (pendingZoneEffect.type === "Луч") {
       const [startCol, startRow] = pendingZoneEffect.caster.position.split("-").map(Number);
       const [endCol, endRow] = coordinates.split("-").map(Number);
-      
+
       const stepX = endCol > startCol ? 1 : endCol < startCol ? -1 : 0;
       const stepY = endRow > startRow ? 1 : endRow < startRow ? -1 : 0;
-      
+
       let currentX = startCol;
       let currentY = startRow;
-      
+
       while (currentX !== endCol || currentY !== endRow) {
         cellsInZone.push(`${currentX}-${currentY}`);
         currentX += stepX;
@@ -1426,10 +1460,10 @@ const ChatConsole = ({ teams, selectedMap }) => {
       if (pendingBeamEffect.stats.beamWidth > 1) {
         const halfWidth = Math.floor(pendingBeamEffect.stats.beamWidth / 2);
         const cellsToAdd = new Set();
-        
+
         cellsInZone.forEach(cell => {
           const [x, y] = cell.split("-").map(Number);
-          
+
           // Для горизонтального луча
           if (startRow === endRow) {
             for (let offset = 1; offset <= halfWidth; offset++) {
@@ -1445,7 +1479,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
             }
           }
         });
-        
+
         cellsInZone = [...cellsInZone, ...cellsToAdd];
       }
     } else if (pendingZoneEffect.type === "Область" || pendingZoneEffect.type === "Заряды по области") {
@@ -1533,7 +1567,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         else if (attackableCells.includes(character.position)) {
           const result = handleAttackCharacter(character)[0];
           setAttackAnimations(prev => [...prev, {
-            position: character.position, 
+            position: character.position,
             damageType: selectedCharacter.advancedSettings.damageType || 'физический'
           }]);
           addActionLog(`${selectedCharacter.name} атаковал ${character.name}: HP ${character.name} = ${result.currentHP}, Armor ${character.name} = ${result.currentArmor}`);
@@ -1578,11 +1612,11 @@ const ChatConsole = ({ teams, selectedMap }) => {
         setReachableCells(calculateReachableCells(character.position, character.currentAgility, selectedMap.size));
       }
       else if (teamTurn != character.team) {
-          setPendingMode(null)
-          setReachableCells([])
-          setShowCharacterInfoPanel(true);
-          setClickedEffectOnPanel(null);
-          setSelectedCharacter(character);
+        setPendingMode(null)
+        setReachableCells([])
+        setShowCharacterInfoPanel(true);
+        setClickedEffectOnPanel(null);
+        setSelectedCharacter(character);
       }
     }
     else {
@@ -1590,48 +1624,53 @@ const ChatConsole = ({ teams, selectedMap }) => {
       setSelectedCharacter(character);
       setClickedEffectOnPanel(null);
       if (character.team === teamTurn) {
-      checkForStore(character)
-      if (matchState.teams[character.team].remain.moves > 0) {
-        setPendingMode("move");
-        setReachableCells(calculateReachableCells(character.position, character.currentAgility, selectedMap.size));  
+        checkForStore(character)
+        if (matchState.teams[character.team].remain.moves > 0) {
+          setPendingMode("move");
+          setReachableCells(calculateReachableCells(character.position, character.currentAgility, selectedMap.size));
         }
         else if (matchState.teams[character.team].remain.actions > 0) {
           setPendingMode("attack")
           handleAttack(character)
         }
-       else {
-        setPendingMode(null);
-        setReachableCells([]);  
-        setAttackableCells([])
-      }
+        else {
+          setPendingMode(null);
+          setReachableCells([]);
+          setAttackableCells([])
+        }
       }
       else {
         setPendingMode(null);
         setReachableCells([])
         setAttackableCells([])
       }
-     }
+    }
   };
 
   // Обработка клика по клетке карты (добавление координат в команду)
   const handleCellClick = (rowIndex, colIndex) => {
     const coordinates = `${colIndex + 1}-${rowIndex + 1}`;
-    if (teleportationMode || zoneSelectionMode || beamSelectionMode || pointSelectionMode || contextMenu.visible) {
-    if (teleportationMode && teleportationCells.includes(coordinates)) {
-      handleTeleportation(coordinates);
-      return;
-    }
-    if (zoneSelectionMode && calculateCastingAllowance(coordinates)) {
-      handleZoneFix(coordinates);
-      return;
-    }
-    if (beamSelectionMode && calculateCastingAllowance(coordinates)) {
-      handleBeamFix(coordinates);
-      return;
-    }
-    if (pointSelectionMode && calculateCastingAllowance(coordinates)) {
-      setPointDestination(coordinates);
-      return;
+
+    if (teleportationMode || zoneSelectionMode || beamSelectionMode || pointSelectionMode || buildingMode || contextMenu.visible) {
+      if (teleportationMode && teleportationCells.includes(coordinates)) {
+        handleTeleportation(coordinates);
+        return;
+      }
+      if (zoneSelectionMode && calculateCastingAllowance(coordinates)) {
+        handleZoneFix(coordinates);
+        return;
+      }
+      if (beamSelectionMode && calculateCastingAllowance(coordinates)) {
+        handleBeamFix(coordinates);
+        return;
+      }
+      if (pointSelectionMode && calculateCastingAllowance(coordinates)) {
+        setPointDestination(coordinates);
+        return;
+      }
+      if (buildingMode && calculateBuildingAllowance(coordinates)) {
+        setBuildingDestination(prev => [...prev, coordinates]);
+        return;
       }
       if (contextMenu.visible) {
         setContextMenu({
@@ -1648,7 +1687,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
           if (pendingMode === "attack") {
             if (matchState.objectsOnMap.find(object => object.position === coordinates && object.currentHP)) {
               let building = matchState.objectsOnMap.find(object => object.position === coordinates && object.currentHP)
-              let result = attackBuilding(building, {damage: selectedCharacter.currentDamage, damageType: selectedCharacter.advancedSettings.damageType}, matchState)
+              let result = attackBuilding(building, { damage: selectedCharacter.currentDamage, damageType: selectedCharacter.advancedSettings.damageType }, matchState)
               matchState.teams[teamTurn].remain.actions--
               let object = matchState.objectsOnMap.find(obj => obj.position === coordinates)
               if (!result.isDestroyed) {
@@ -1657,15 +1696,16 @@ const ChatConsole = ({ teams, selectedMap }) => {
                   title: object.name,
                   description: object.description,
                   parameters: object.type === "building" ? {
-                  stats: object.stats, 
-                  current: {
-                    currentHP: object.currentHP,
-                    currentAgility: object.currentAgility,
-                    currentDamage: object.currentDamage,
-                    currentMana: object.currentMana,
-                    currentArmor: object.currentArmor,
-                    currentRange: object.currentRange
-                  }} : null,
+                    stats: object.stats,
+                    current: {
+                      currentHP: object.currentHP,
+                      currentAgility: object.currentAgility,
+                      currentDamage: object.currentDamage,
+                      currentMana: object.currentMana,
+                      currentArmor: object.currentArmor,
+                      currentRange: object.currentRange
+                    }
+                  } : null,
                   image: object.image,
                   actions: object.type === "item" && [
                     {
@@ -1685,7 +1725,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
           else {
             setDynamicTooltip(null)
           }
-        } 
+        }
         else {
           let object = matchState.objectsOnMap.find(obj => obj.position === coordinates)
           setDynamicTooltip({
@@ -1693,15 +1733,16 @@ const ChatConsole = ({ teams, selectedMap }) => {
             title: object.name,
             description: object.description,
             parameters: object.type === "building" ? {
-            stats: object.stats, 
-            current: {
-              currentHP: object.currentHP,
-              currentAgility: object.currentAgility,
-              currentDamage: object.currentDamage,
-              currentMana: object.currentMana,
-              currentArmor: object.currentArmor,
-              currentRange: object.currentRange
-            }} : null,
+              stats: object.stats,
+              current: {
+                currentHP: object.currentHP,
+                currentAgility: object.currentAgility,
+                currentDamage: object.currentDamage,
+                currentMana: object.currentMana,
+                currentArmor: object.currentArmor,
+                currentRange: object.currentRange
+              }
+            } : null,
             image: object.image,
             actions: object.type === "item" && [
               {
@@ -1711,21 +1752,22 @@ const ChatConsole = ({ teams, selectedMap }) => {
                 }
               }
             ]
-        })
-        console.log({
+          })
+          console.log({
             coordinates,
             title: object.name,
             description: object.description,
             parameters: object.type === "building" ? {
-            stats: object.stats, 
-            current: {
-              currentHP: object.currentHP,
-              currentAgility: object.currentAgility,
-              currentDamage: object.currentDamage,
-              currentMana: object.currentMana,
-              currentArmor: object.currentArmor,
-              currentRange: object.currentRange
-            }} : null,
+              stats: object.stats,
+              current: {
+                currentHP: object.currentHP,
+                currentAgility: object.currentAgility,
+                currentDamage: object.currentDamage,
+                currentMana: object.currentMana,
+                currentArmor: object.currentArmor,
+                currentRange: object.currentRange
+              }
+            } : null,
             image: object.image,
             actions: [
               object.type === "item" && {
@@ -1735,7 +1777,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
                 }
               }
             ]
-        }); 
+          });
         }
       } else {
         if (reachableCells.includes(coordinates) && pendingMode === "move" && matchState.teams[teamTurn].remain.moves > 0) {
@@ -1780,15 +1822,16 @@ const ChatConsole = ({ teams, selectedMap }) => {
                 title: object.name,
                 description: object.description,
                 parameters: object.type === "building" ? {
-                stats: object.stats, 
-                current: {
-                  currentHP: object.currentHP,
-                  currentAgility: object.currentAgility,
-                  currentDamage: object.currentDamage,
-                  currentMana: object.currentMana,
-                  currentArmor: object.currentArmor,
-                  currentRange: object.currentRange
-                }} : null,
+                  stats: object.stats,
+                  current: {
+                    currentHP: object.currentHP,
+                    currentAgility: object.currentAgility,
+                    currentDamage: object.currentDamage,
+                    currentMana: object.currentMana,
+                    currentArmor: object.currentArmor,
+                    currentRange: object.currentRange
+                  }
+                } : null,
                 image: object.image,
                 actions: object.type === "item" && [
                   {
@@ -1798,13 +1841,13 @@ const ChatConsole = ({ teams, selectedMap }) => {
                     }
                   }
                 ]
-            })
+              })
             }
           }
         }
         if (["laboratory", "armory", "magic shop"].includes(selectedMap.map[rowIndex][colIndex].initial)) {
           setStore(selectedMap.map[rowIndex][colIndex].initial);
-        } 
+        }
       }
     }
   };
@@ -2024,6 +2067,32 @@ const ChatConsole = ({ teams, selectedMap }) => {
     });
   }
 
+  const confirmBuilding = () => {
+    for (let i = 0; i < buildingDestination.length; i++) {
+      handleBuild(selectedCharacter, pendingItem, buildingDestination[i]);
+      if (pendingItem.name === "Стена (х3)") {
+        selectedCharacter.inventory.find(item => item.name === "Стена (х3)").left -= 1;
+        if (selectedCharacter.inventory.find(item => item.name === "Стена (х3)").left === 0) {
+          selectedCharacter.inventory = selectedCharacter.inventory.filter(item => item.name !== "Стена (х3)");
+        }
+      }
+      else {
+        selectedCharacter.inventory = selectedCharacter.inventory.filter(item => item.name !== pendingItem.name);
+      }
+    }
+    matchState.teams[teamTurn].remain.actions -= 1;
+    setBuildingMode(false);
+    setBuildingCells([]);
+    setBuildingDestination([]);
+    setSelectionOverlay([]);
+    setPendingItem(null);
+    if (matchState.teams[teamTurn].remain.moves > 0) {
+      setPendingMode("move");
+    } else {
+      setPendingMode(null);
+    }
+  }
+
   const confirmZoneEffect = () => {
     if (!pendingZoneEffect) return;
 
@@ -2056,28 +2125,28 @@ const ChatConsole = ({ teams, selectedMap }) => {
           sumX += col;
           sumY += row;
         });
-        
+
         // Вычисляем среднее значение координат (центр области)
         const centerX = Math.round(sumX / selectionOverlay.length);
         const centerY = Math.round(sumY / selectionOverlay.length);
         const centerCoord = `${centerX}-${centerY}`;
-        
+
         // Определяем команду персонажа
         const casterTeam = matchState.teams.red.characters.some(
           ch => ch.name === pendingZoneEffect.caster.name
         ) ? "red" : "blue";
-        
+
         // Обновляем позицию персонажа
-        const updatedCharacter = {...pendingZoneEffect.caster, position: centerCoord};
-        
+        const updatedCharacter = { ...pendingZoneEffect.caster, position: centerCoord };
+
         // Обновляем состояние матча
-        const updatedTeams = {...matchState.teams};
-        updatedTeams[casterTeam].characters = updatedTeams[casterTeam].characters.map(ch => 
+        const updatedTeams = { ...matchState.teams };
+        updatedTeams[casterTeam].characters = updatedTeams[casterTeam].characters.map(ch =>
           ch.name === pendingZoneEffect.caster.name ? updatedCharacter : ch
         );
-        
+
         matchState.teams[casterTeam].remain.actions -= 1;
-        updateMatchState({teams: updatedTeams});
+        updateMatchState({ teams: updatedTeams });
         addActionLog(`${pendingZoneEffect.caster.name} перемещается в центр области (${centerCoord})`);
       }
     }
@@ -2108,52 +2177,52 @@ const ChatConsole = ({ teams, selectedMap }) => {
       const casterTeam = matchState.teams.red.characters.some(
         ch => ch.name === pendingBeamEffect.caster.name
       ) ? "red" : "blue";
-      
+
       // Получаем позицию персонажа, который использует способность
       const [casterCol, casterRow] = pendingBeamEffect.caster.position.split("-").map(Number);
-      
+
       // Определяем направление луча, используя первую клетку в beamCells
       if (beamCells.length > 0) {
         const [firstBeamCol, firstBeamRow] = beamCells[0].split("-").map(Number);
-        
+
         // Вычисляем направление луча
         const dirX = firstBeamCol > casterCol ? 1 : firstBeamCol < casterCol ? -1 : 0;
         const dirY = firstBeamRow > casterRow ? 1 : firstBeamRow < casterRow ? -1 : 0;
-        
+
         // Находим длину центральной линии луча
         let maxDistance = 0;
         let endPosition = null;
-        
+
         // Проходим по всем клеткам луча, чтобы найти самую дальнюю клетку в направлении луча
         beamCells.forEach(cell => {
           const [cellCol, cellRow] = cell.split("-").map(Number);
-          
+
           // Проверяем, находится ли клетка на центральной линии
-          const isOnCentralLine = 
-            (dirX === 0 && cellCol === casterCol) || 
+          const isOnCentralLine =
+            (dirX === 0 && cellCol === casterCol) ||
             (dirY === 0 && cellRow === casterRow) ||
-            (Math.abs(cellCol - casterCol) === Math.abs(cellRow - casterRow) && 
-             Math.sign(cellCol - casterCol) === dirX && 
-             Math.sign(cellRow - casterRow) === dirY);
-          
+            (Math.abs(cellCol - casterCol) === Math.abs(cellRow - casterRow) &&
+              Math.sign(cellCol - casterCol) === dirX &&
+              Math.sign(cellRow - casterRow) === dirY);
+
           if (isOnCentralLine) {
             const distance = Math.max(
               Math.abs(cellCol - casterCol),
               Math.abs(cellRow - casterRow)
             );
-            
+
             if (distance > maxDistance) {
               maxDistance = distance;
               endPosition = cell;
             }
           }
         });
-        
+
         if (endPosition) {
           // Проверяем, свободна ли конечная позиция
           let targetPosition = endPosition;
           let isCellOccupied = false;
-          
+
           // Проверяем, есть ли персонаж на целевой клетке
           ["red", "blue"].forEach(team => {
             matchState.teams[team].characters.forEach(ch => {
@@ -2162,24 +2231,24 @@ const ChatConsole = ({ teams, selectedMap }) => {
               }
             });
           });
-          
+
           // Если клетка занята, ищем ближайшую свободную
           if (isCellOccupied) {
             const [endCol, endRow] = endPosition.split("-").map(Number);
             const adjacentCells = [
-              `${endCol+1}-${endRow}`, `${endCol-1}-${endRow}`,
-              `${endCol}-${endRow+1}`, `${endCol}-${endRow-1}`,
-              `${endCol+1}-${endRow+1}`, `${endCol-1}-${endRow-1}`,
-              `${endCol+1}-${endRow-1}`, `${endCol-1}-${endRow+1}`
+              `${endCol + 1}-${endRow}`, `${endCol - 1}-${endRow}`,
+              `${endCol}-${endRow + 1}`, `${endCol}-${endRow - 1}`,
+              `${endCol + 1}-${endRow + 1}`, `${endCol - 1}-${endRow - 1}`,
+              `${endCol + 1}-${endRow - 1}`, `${endCol - 1}-${endRow + 1}`
             ];
-            
+
             // Фильтруем клетки, которые находятся в пределах карты
             const validCells = adjacentCells.filter(cell => {
               const [col, row] = cell.split("-").map(Number);
-              return col >= 1 && col <= selectedMap.size[0] && 
-                     row >= 1 && row <= selectedMap.size[1];
+              return col >= 1 && col <= selectedMap.size[0] &&
+                row >= 1 && row <= selectedMap.size[1];
             });
-            
+
             // Проверяем, какие клетки свободны
             const freeCells = validCells.filter(cell => {
               let isOccupied = false;
@@ -2192,24 +2261,24 @@ const ChatConsole = ({ teams, selectedMap }) => {
               });
               return !isOccupied;
             });
-            
+
             if (freeCells.length > 0) {
               // Выбираем случайную свободную клетку
               targetPosition = freeCells[Math.floor(Math.random() * freeCells.length)];
             }
           }
-          
+
           // Перемещаем персонажа
-          const updatedCharacter = {...pendingBeamEffect.caster, position: targetPosition};
-          
+          const updatedCharacter = { ...pendingBeamEffect.caster, position: targetPosition };
+
           // Обновляем состояние матча
-          const updatedTeams = {...matchState.teams};
-          updatedTeams[casterTeam].characters = updatedTeams[casterTeam].characters.map(ch => 
+          const updatedTeams = { ...matchState.teams };
+          updatedTeams[casterTeam].characters = updatedTeams[casterTeam].characters.map(ch =>
             ch.name === pendingBeamEffect.caster.name ? updatedCharacter : ch
           );
-          
+
           matchState.teams[casterTeam].remain.actions -= 1;
-          updateMatchState({teams: updatedTeams});
+          updateMatchState({ teams: updatedTeams });
           addActionLog(`${pendingBeamEffect.caster.name} перемещается на ${targetPosition} после применения луча.`);
         }
       }
@@ -2269,7 +2338,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
     // Вычисляем направление луча: шаг по каждой оси будет 1, -1 или 0.
     const stepX = dirCol === startCol ? 0 : (dirCol - startCol) > 0 ? 1 : -1;
     const stepY = dirRow === startRow ? 0 : (dirRow - startRow) > 0 ? 1 : -1;
-    
+
     // Перпендикулярный вектор (используется для боковых ветвей)
     const perpX = stepY;
     const perpY = -stepX;
@@ -2287,7 +2356,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
       if (!cell || ["red base", "blue base", "magic shop", "laboratory", "armory"].includes(cell.initial) && !canGoThroughWalls || (matchState.objectsOnMap.find((obj) => obj.position === `${currX}-${currY}`)) && !canGoThroughWalls) break;
       centralBeam.push({ col: currX, row: currY });
     }
-    
+
     // Если центральная линия не получилась – возвращаем пустой массив
     if (centralBeam.length === 0) return [];
 
@@ -2323,47 +2392,47 @@ const ChatConsole = ({ teams, selectedMap }) => {
 
   // Расчет клеток луча по методу "расческа"
   const calculateBeamCellsComb = (startPosition, directionCoord, mapSize, beamRange, beamWidth = 1, canGoThroughWalls = false) => {
-    
+
     const [startCol, startRow] = startPosition.split("-").map(Number);
     const [dirCol, dirRow] = directionCoord.split("-").map(Number);
-    
+
     // Определяем направление луча
     const stepX = dirCol === startCol ? 0 : (dirCol - startCol) > 0 ? 1 : -1;
     const stepY = dirRow === startRow ? 0 : (dirRow - startRow) > 0 ? 1 : -1;
-    
+
     // Определяем перпендикулярное направление для боковых ветвей
     const perpX = stepY;
     const perpY = -stepX;
-    
+
     // Вычисляем центральную линию луча ровно на beamRange шагов
     const centralBeam = [];
     for (let i = 0; i < beamRange; i++) {
       const currX = startCol + stepX * (i + 1);
       const currY = startRow + stepY * (i + 1);
-      
+
       // Если клетка выходит за границы карты, завершаем линию
       if (currX < 1 || currX > mapSize[0] || currY < 1 || currY > mapSize[1]) break;
-      
+
       const cell = selectedMap.map[currY - 1]?.[currX - 1];
       // Если клетки нет, прерываем
       if (!cell) break;
-      
+
       // Если можем проходить сквозь стены, добавляем клетку в любом случае
       if (canGoThroughWalls) {
         centralBeam.push({ col: currX, row: currY });
       } else {
         // Если не можем проходить сквозь стены, проверяем препятствия
-        if (["red base", "blue base", "magic shop", "laboratory", "armory"].includes(cell.initial) || (matchState.objectsOnMap.find((obj) => obj.position === `${currX}-${currY}`)) ) break;
+        if (["red base", "blue base", "magic shop", "laboratory", "armory"].includes(cell.initial) || (matchState.objectsOnMap.find((obj) => obj.position === `${currX}-${currY}`))) break;
         centralBeam.push({ col: currX, row: currY });
       }
     }
-    
+
     // Если центральная линия не получилась – возвращаем пустой массив
     if (centralBeam.length === 0) return [];
-    
+
     // Определяем максимальное смещение для боковых ветвей
     const halfWidth = Math.floor(beamWidth / 2);
-    
+
     // Создаем массив для хранения клеток луча
     let beamCells = [];
     // Добавляем центральную линию в результат
@@ -2376,14 +2445,14 @@ const ChatConsole = ({ teams, selectedMap }) => {
           for (let offset = 1; offset <= halfWidth; offset++) {
             const x = point.col + offset * direction * perpX;
             const y = point.row + offset * direction * perpY;
-            
+
             // Проверяем границы карты
             if (x < 1 || x > mapSize[0] || y < 1 || y > mapSize[1]) break;
-            
+
             const cell = selectedMap.map[y - 1]?.[x - 1];
             // Если клетки нет, прерываем
             if (!cell) break;
-            
+
             // Если можем проходить сквозь стены, добавляем клетку в любом случае
             if (canGoThroughWalls) {
               beamCells.push(`${x}-${y}`);
@@ -2403,7 +2472,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
     console.log(startCoord, range, mapSize, canGoThroughWalls);
     const [startCol, startRow] = startCoord.split("-").map(Number);
     const cells = new Set(); // Используем Set для уникальных координат
-    
+
     // Направления: вниз, вверх, вправо, влево
     const directions = [
       { stepX: 0, stepY: 1 },  // Вниз
@@ -2411,33 +2480,33 @@ const ChatConsole = ({ teams, selectedMap }) => {
       { stepX: 1, stepY: 0 },  // Вправо
       { stepX: -1, stepY: 0 }  // Влево
     ];
-    
+
     // Проходим по каждому направлению
     directions.forEach(({ stepX, stepY }) => {
       // Начинаем с первой клетки, смежной с персонажем
       for (let i = 0; i < range; i++) {
         const currX = startCol + stepX * (i + 1);
         const currY = startRow + stepY * (i + 1);
-        
+
         // Если клетка выходит за границы карты, завершаем линию
         if (currX < 1 || currX > mapSize[0] || currY < 1 || currY > mapSize[1]) break;
-        
+
         const cell = selectedMap.map[currY - 1]?.[currX - 1];
         // Если клетки нет, прерываем
         if (!cell) break;
-        
+
         const cellCoord = `${currX}-${currY}`;
-        
+
         // Проверяем, есть ли на клетке персонаж
         const hasCharacter = ["red", "blue"].some(team =>
           matchState.teams[team].characters.some(ch => ch.position === cellCoord && ch.currentHP > 0)
         );
-        
+
         // Если можем проходить сквозь стены, проверяем только персонажей
         if (canGoThroughWalls) {
           // Добавляем клетку в любом случае
           cells.add(cellCoord);
-          
+
           // Если на клетке есть персонаж, прерываем линию
           if (hasCharacter) break;
         } else {
@@ -2445,10 +2514,10 @@ const ChatConsole = ({ teams, selectedMap }) => {
           if (["red base", "blue base", "magic shop", "laboratory", "armory"].includes(cell.initial) || (matchState.objectsOnMap.find((obj) => obj.position === `${currX}-${currY}`))) {
             break;
           }
-          
+
           // Добавляем клетку в результат
           cells.add(cellCoord);
-          
+
           // Если на клетке есть персонаж, прерываем линию
           if (hasCharacter) break;
         }
@@ -2458,7 +2527,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
   };
 
   const handleBeamFix = () => {
-    const cellsInBeam = [...beamCells];    
+    const cellsInBeam = [...beamCells];
 
     const affectedCharacters = [];
     ["red", "blue"].forEach((team) => {
@@ -2473,24 +2542,24 @@ const ChatConsole = ({ teams, selectedMap }) => {
   };
 
   const renderCharacterIcon = (char, team) => (
-  <button            /* <— button ловит Enter/Space + легко сделать :focus */
-    type="button"
-    className={`field-character-icon`}
-    onClick={(e) => {             // клик по герою
-      e.stopPropagation();         // не передаём событие клетке!
-      handleCharacterIconCLick(char);
-    }}
-  >
-    <img
-      src={`src/assets/characters/${char.image}`}
-      alt={char.name}
-      style={{
-        transform: team === "blue" ? "scaleX(-1)" : "none",
+    <button            /* <— button ловит Enter/Space + легко сделать :focus */
+      type="button"
+      className={`field-character-icon`}
+      onClick={(e) => {             // клик по герою
+        e.stopPropagation();         // не передаём событие клетке!
+        handleCharacterIconCLick(char);
       }}
-      draggable={false}
-    />
-  </button>
-);
+    >
+      <img
+        src={`src/assets/characters/${char.image}`}
+        alt={char.name}
+        style={{
+          transform: team === "blue" ? "scaleX(-1)" : "none",
+        }}
+        draggable={false}
+      />
+    </button>
+  );
 
   const renderGameMap = () => {
     return (
@@ -2545,7 +2614,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
               classes.push("selectable-cell");
             if (beamCells.includes(cellKey))
               classes.push("beam-selection");
-            if (throwableCells.includes(cellKey))
+            if (throwableCells.includes(cellKey) || buildingCells.includes(cellKey))
               classes.push("throwable-cell");
             if (teleportationCells.includes(cellKey) && cellKey !== teleportationDestination)
               classes.push("cell--teleport-available");
@@ -2555,6 +2624,8 @@ const ChatConsole = ({ teams, selectedMap }) => {
               classes.push("cell--point");
             if (pointDestination === cellKey)
               classes.push("cell--point-target");
+            if (buildingDestination.includes(cellKey))
+              classes.push("cell--building-target");
             if (redChar)
               classes.push("red-character");
             if (blueChar)
@@ -2563,11 +2634,11 @@ const ChatConsole = ({ teams, selectedMap }) => {
             // Находим персонажа
 
             // Проверяем, нужно ли показывать координаты
-            const showCoordinates = hoveredCell === cellKey && 
-              (!redChar && !blueChar) && 
-              (cell.initial === "empty" || 
-               cell.initial === "wall" || 
-               cell.initial === "bush");
+            const showCoordinates = hoveredCell === cellKey &&
+              (!redChar && !blueChar) &&
+              (cell.initial === "empty" ||
+                cell.initial === "wall" ||
+                cell.initial === "bush");
 
             const isAttackAnimation = attackAnimations.find(anim => anim.position === cellKey);
 
@@ -2604,8 +2675,8 @@ const ChatConsole = ({ teams, selectedMap }) => {
                     <img src={`/src/assets/gifs/${getAttackName(isAttackAnimation.damageType)}.gif`} />
                   </div>
                 )}
-                {redChar  && renderCharacterIcon(redChar,  "red")}
-                {blueChar && renderCharacterIcon(blueChar, "blue")}          
+                {redChar && renderCharacterIcon(redChar, "red")}
+                {blueChar && renderCharacterIcon(blueChar, "blue")}
                 {showCoordinates && (
                   <div style={{
                     position: 'absolute',
@@ -2707,11 +2778,11 @@ const ChatConsole = ({ teams, selectedMap }) => {
   const calculateTeleportationCells = (startCoord, range, mapSize) => {
     const [startCol, startRow] = startCoord.split("-").map(Number);
     const cells = [];
-    
+
     // Определяем границы для обхода клеток в зависимости от range
     let rowStart = 1, rowEnd = mapSize[1];
     let colStart = 1, colEnd = mapSize[0];
-    
+
     if (range !== "map") {
       if (range === "half map") {
         // Определяем, на какой половине карты находится персонаж
@@ -2726,7 +2797,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         colEnd = Math.min(mapSize[0], startCol + range);
       }
     }
-    
+
     // Проходим по всем клеткам в определенной области
     for (let row = rowStart; row <= rowEnd; row++) {
       for (let col = colStart; col <= colEnd; col++) {
@@ -2735,7 +2806,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
           const distance = Math.abs(col - startCol) + Math.abs(row - startRow);
           if (distance > range) continue;
         }
-        
+
         const cell = selectedMap.map[row - 1][col - 1];
         // Проверяем, что клетка проходима и не занята другим персонажем
         if (cell && !["red base", "blue base", "magic shop", "laboratory", "armory"].includes(cell.initial) && !matchState.objectsOnMap.find((obj) => obj.position === `${col}-${row}`)) {
@@ -2758,20 +2829,20 @@ const ChatConsole = ({ teams, selectedMap }) => {
 
     // Определяем команду персонажа
     const casterTeam = pendingTeleportation.caster.team
-    
+
     // Обновляем позицию персонажа
-    const updatedCharacter = {...pendingTeleportation.caster, position: targetCoord};
-    
+    const updatedCharacter = { ...pendingTeleportation.caster, position: targetCoord };
+
     // Обновляем состояние матча
-    const updatedTeams = {...matchState.teams};
-    updatedTeams[casterTeam].characters = updatedTeams[casterTeam].characters.map(ch => 
+    const updatedTeams = { ...matchState.teams };
+    updatedTeams[casterTeam].characters = updatedTeams[casterTeam].characters.map(ch =>
       ch.name === pendingTeleportation.caster.name ? updatedCharacter : ch
     );
-    
+
     updatedTeams[casterTeam].remain.actions -= 1;
-    updateMatchState({teams: updatedTeams});
+    updateMatchState({ teams: updatedTeams });
     addActionLog(`${pendingTeleportation.caster.name} телепортируется на ${targetCoord}`);
-    
+
     // Очищаем состояния телепортации
     setTeleportationMode(false);
     setPendingTeleportation(null);
@@ -2789,7 +2860,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
     }
   };
 
-  const redChars  = useMemo(
+  const redChars = useMemo(
     () => matchState.teams.red.characters,
     [matchState.teams.red.characters]   // меняется ТОЛЬКО при реальном апдейте
   );
@@ -2819,7 +2890,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
       setItemHelperInfo(null)
     }
     else {
-      setItemHelperInfo({...itemObject, owner: character})
+      setItemHelperInfo({ ...itemObject, owner: character })
     }
   }
 
@@ -2880,7 +2951,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
 
   const takeObject = (object) => {
     matchState.objectsOnMap.splice(matchState.objectsOnMap.indexOf(object), 1);
-    selectedCharacter.inventory.push({...object})
+    selectedCharacter.inventory.push({ ...object })
     matchState.teams[selectedCharacter.team].remain.actions -= 1;
     setDynamicTooltip(null);
     updateMatchState()
@@ -2905,88 +2976,135 @@ const ChatConsole = ({ teams, selectedMap }) => {
 
   return (
     <div className={`game-console ${matchState.selectedMap === "pixie-fields" ? "pixieFields" : "ilmarinFortress"}`}>
-     {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn} handleCloseFinale={handleCloseFinale} handleDownloadStats={handleDownloadStats}/>}
-    <div className="game-console-overlay" style={{backgroundColor: `${teamTurn === "red" ? "rgba(102, 24, 24, 0.4)" : "rgba(34, 34, 139, 0.3)"}`}}></div>
+      {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn} handleCloseFinale={handleCloseFinale} handleDownloadStats={handleDownloadStats} />}
+      <div className="game-console-overlay" style={{ backgroundColor: `${teamTurn === "red" ? "rgba(102, 24, 24, 0.4)" : "rgba(34, 34, 139, 0.3)"}` }}></div>
       {lastNotification && (
-        <Notification 
-          message={lastNotification.text} 
-          type={lastNotification.type} 
+        <Notification
+          message={lastNotification.text}
+          type={lastNotification.type}
         />
       )}
       {store && (
         <Store
           matchState={matchState}
-          character={selectedCharacter? selectedCharacter : null}
+          character={selectedCharacter ? selectedCharacter : null}
           storeType={store}
           onClose={() => setStore(null)}
           onBuy={handleBuyItem}
         />
       )}
       <GameHeader
-        redHP   = {matchState.teams.red.baseHP}
-        blueHP  = {matchState.teams.blue.baseHP}
+        redHP={matchState.teams.red.baseHP}
+        blueHP={matchState.teams.blue.baseHP}
         redChars={redChars}
         blueChars={blueChars}
         gameTime={matchState.gameTime}    // меняется только при паузе
         onSelectCharacter={handleSelectCharacter}
-    />
-    <BaseInfo inventory={matchState.teams.red.inventory} gold={matchState.teams.red.gold} team="red" remain={matchState.teams.red.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn}/>
-    <BaseInfo inventory={matchState.teams.blue.inventory} gold={matchState.teams.blue.gold} team="blue" remain={matchState.teams.blue.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn}/>
-    <EndRoundButton round={matchState.turn} handleEndRound={handleEndTurn} />
+      />
+      <BaseInfo inventory={matchState.teams.red.inventory} gold={matchState.teams.red.gold} team="red" remain={matchState.teams.red.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} />
+      <BaseInfo inventory={matchState.teams.blue.inventory} gold={matchState.teams.blue.gold} team="blue" remain={matchState.teams.blue.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} />
+      <EndRoundButton round={matchState.turn} handleEndRound={handleEndTurn} />
 
       <div className="game-container">
-      {renderGameMap()}
-      <ContextMenu
-        contextMenu={contextMenu}
-        setContextMenu={setContextMenu}
-        setInputValue={setInputValue}
-        inputValue={inputValue}
-        handleInputChange={handleInputChange}
-        updateMatchState={updateMatchState}
-        matchState={matchState}
-      />
-      <PauseModal
-        isPaused={isPaused}
-        matchState={matchState}
-        onResume={handleResume}
-        handleDownloadCurrentMatch={handleDownloadCurrentMatch}
-        handleDownloadAllMatches={handleDownloadAllMatches}
-      ></PauseModal>
-      {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn}/>}
-      {cellEffectsInfo && (
-        <div className="cell-effects-tooltip">
-          <strong>Эффекты на клетке {cellEffectsInfo.cellCoord}:</strong>
-          <ul>
-            {cellEffectsInfo.effects.map((eff, idx) => (
-              <li key={idx} style={{ color: eff.color }}>
-                {eff.name}
-              </li>
-            ))}
-          </ul>
-          <button onClick={() => setCellEffectsInfo(null)}>Закрыть</button>
-        </div>
-      )}
-      {zoneSelectionMode && (
-        <div className="game-zone-confirmation__container">
-          <p className="game-zone-confirmation__message">
-            {teleportationMode ? "Выберите клетку для телепортации" : "Подтвердите размещение зоны эффекта"}
-            <br />
-            <span style={{ color: "rgb(255, 234, 49)" }}>
-              {pendingZoneEffect?.name}
-            </span>
-          </p>
+        {renderGameMap()}
+        <ContextMenu
+          contextMenu={contextMenu}
+          setContextMenu={setContextMenu}
+          setInputValue={setInputValue}
+          inputValue={inputValue}
+          handleInputChange={handleInputChange}
+          updateMatchState={updateMatchState}
+          matchState={matchState}
+        />
+        <PauseModal
+          isPaused={isPaused}
+          matchState={matchState}
+          onResume={handleResume}
+          handleDownloadCurrentMatch={handleDownloadCurrentMatch}
+          handleDownloadAllMatches={handleDownloadAllMatches}
+        ></PauseModal>
+        {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn} />}
+        {cellEffectsInfo && (
+          <div className="cell-effects-tooltip">
+            <strong>Эффекты на клетке {cellEffectsInfo.cellCoord}:</strong>
+            <ul>
+              {cellEffectsInfo.effects.map((eff, idx) => (
+                <li key={idx} style={{ color: eff.color }}>
+                  {eff.name}
+                </li>
+              ))}
+            </ul>
+            <button onClick={() => setCellEffectsInfo(null)}>Закрыть</button>
+          </div>
+        )}
+        {zoneSelectionMode && (
+          <div className="game-zone-confirmation__container">
+            <p className="game-zone-confirmation__message">
+              {teleportationMode ? "Выберите клетку для телепортации" : "Подтвердите размещение зоны эффекта"}
+              <br />
+              <span style={{ color: "rgb(255, 234, 49)" }}>
+                {pendingZoneEffect?.name}
+              </span>
+            </p>
 
-          {zoneFixed && pendingZoneEffect.type === "Заряды по области" && (
-            <>
-              <div className="charges-info">
-                Зарядов:{" "}
-                {Object.values(chargesDistribution).reduce(
-                  (sum, val) => sum + Number(val),
-                  0
-                )}{" "}
-                / {pendingZoneEffect.stats.shotsAmount}
-              </div>
+            {zoneFixed && pendingZoneEffect.type === "Заряды по области" && (
+              <>
+                <div className="charges-info">
+                  Зарядов:{" "}
+                  {Object.values(chargesDistribution).reduce(
+                    (sum, val) => sum + Number(val),
+                    0
+                  )}{" "}
+                  / {pendingZoneEffect.stats.shotsAmount}
+                </div>
 
+                <ul className="affected-characters-list">
+                  {charactersInZone.map((ch) => (
+                    <li key={ch.name}>
+                      <span
+                        style={{
+                          color: matchState.teams.red.characters.some(
+                            (c) => c.name === ch.name
+                          )
+                            ? "#942b2b"
+                            : "#1a5896",
+                        }}
+                      >
+                        {ch.name}
+                      </span>
+                      <input
+                        type="number"
+                        min={0}
+                        value={chargesDistribution[ch.name] || 0}
+                        onChange={(e) => {
+                          let val = parseInt(e.target.value, 10) || 0;
+
+                          const currentTotal = Object.values(
+                            chargesDistribution
+                          ).reduce((sum, v, idx, arr) => sum + Number(v), 0);
+
+                          const availableCharges =
+                            pendingZoneEffect.stats.shotsAmount -
+                            currentTotal +
+                            (chargesDistribution[ch.name] || 0);
+
+                          if (val > availableCharges) {
+                            val = availableCharges;
+                          }
+
+                          setChargesDistribution((prev) => ({
+                            ...prev,
+                            [ch.name]: val,
+                          }));
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </>
+            )}
+
+            {zoneFixed && (pendingZoneEffect.type === "Мгновенная область способности" || pendingZoneEffect.type === "Область с перемещением") && (
               <ul className="affected-characters-list">
                 {charactersInZone.map((ch) => (
                   <li key={ch.name}>
@@ -3001,416 +3119,429 @@ const ChatConsole = ({ teams, selectedMap }) => {
                     >
                       {ch.name}
                     </span>
-                    <input
-                      type="number"
-                      min={0}
-                      value={chargesDistribution[ch.name] || 0}
-                      onChange={(e) => {
-                        let val = parseInt(e.target.value, 10) || 0;
-
-                        const currentTotal = Object.values(
-                          chargesDistribution
-                        ).reduce((sum, v, idx, arr) => sum + Number(v), 0);
-
-                        const availableCharges =
-                          pendingZoneEffect.stats.shotsAmount -
-                          currentTotal +
-                          (chargesDistribution[ch.name] || 0);
-
-                        if (val > availableCharges) {
-                          val = availableCharges;
-                        }
-
-                        setChargesDistribution((prev) => ({
-                          ...prev,
-                          [ch.name]: val,
-                        }));
-                      }}
-                    />
                   </li>
                 ))}
               </ul>
-            </>
-          )}
-
-          {zoneFixed && (pendingZoneEffect.type === "Мгновенная область способности" || pendingZoneEffect.type === "Область с перемещением") && (
-            <ul className="affected-characters-list">
-              {charactersInZone.map((ch) => (
-                <li key={ch.name}>
-                  <span
-                    style={{
-                      color: matchState.teams.red.characters.some(
-                        (c) => c.name === ch.name
-                      )
-                        ? "#942b2b"
-                        : "#1a5896",
-                    }}
-                  >
-                    {ch.name}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <button
-            className="game-zone-confirmation__button game-zone-pinButton"
-            onClick={() => {
-              if (zoneFixed) {
-                setZoneFixed(false);
-                setChargesDistribution({});
-              } else {
-                handleZoneFixShort(selectionOverlay);
-              }
-            }}
-          >
-            {zoneFixed ? "Открепить зону" : "Закрепить зону"}
-          </button>
-
-          <div className="game-zone-confirmation__button-group">
+            )}
             <button
-              onClick={confirmZoneEffect}
-              className="game-zone-confirmation__button game-zone-confirmation__button--confirm"
-            >
-              Подтвердить
-            </button>
-            <button
-              onClick={() => {
-                setZoneSelectionMode(false);
-                setZoneFixed(false);
-                setSelectionOverlay([]);
-                setPendingZoneEffect(null);
-                setCharactersInZone([]);
-                setChargesDistribution({});
-                if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
-                  setPendingMode("move");
-                } else {
-                  setPendingMode(null)
-                }
-              }}
-              className="game-zone-confirmation__button game-zone-confirmation__button--cancel"
-            >
-              Отмена
-            </button>
-          </div>
-        </div>
-      )}
-      {beamSelectionMode && (
-        <div className="game-zone-confirmation__container">
-          <p className="game-zone-confirmation__message">
-            Подтвердите направление луча
-            <br />
-            <span style={{ color: "rgb(248, 49, 255)" }}>
-              {pendingBeamEffect?.name}
-            </span>
-          </p>
-
-          {beamFixed && (
-            <ul className="affected-characters-list">
-              {charactersInZone.map((ch) => (
-                <li key={ch.name}>
-                  <span
-                    style={{
-                      color: matchState.teams.red.characters.some(
-                        (c) => c.name === ch.name
-                      )
-                        ? "#942b2b"
-                        : "#1a5896",
-                    }}
-                  >
-                    {ch.name}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-
-          <button
-            className="game-zone-confirmation__button game-zone-pinButton"
-            onClick={() => {
-              if (beamFixed) {
-                setBeamFixed(false);
-              } else {
-                handleBeamFix();
-              }
-            }}
-          >
-            {beamFixed ? "Открепить луч" : "Закрепить луч"}
-          </button>
-
-          <div className="game-zone-confirmation__button-group">
-            <button
-              onClick={confirmBeamEffect}
-              className="game-zone-confirmation__button game-zone-confirmation__button--confirm"
-            >
-              Подтвердить
-            </button>
-            <button
-              onClick={() => {
-                setBeamSelectionMode(false);
-                setBeamFixed(false);
-                setBeamCells([]);
-                setSelectionOverlay([]);
-                setPendingBeamEffect(null);
-                setCharactersInZone([]);
-                if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
-                  setPendingMode("move");
-                } else {
-                  setPendingMode(null)
-                }
-              }}
-              className="game-zone-confirmation__button game-zone-confirmation__button--cancel"
-            >
-              Отмена
-            </button>
-          </div>
-        </div>
-      )}
-      {teleportationMode && (
-        <div className="game-zone-confirmation__container">
-          <p className="game-zone-confirmation__message">
-            Выберите точку для телепортации
-            <br />
-            <span style={{ color: "rgb(147, 112, 219)" }}>
-              {pendingTeleportation?.name}
-            </span>
-          </p>
-
-          <div className="game-zone-confirmation__button-group">
-            <button
-              onClick={() => {
-                setTeleportationMode(false);
-                setPendingTeleportation(null);
-                setTeleportationCells([]);
-                setTeleportationDestination(null);
-                setSelectionOverlay([]);
-                if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
-                  setPendingMode("move");
-                } else {
-                  setPendingMode(null)
-                }
-              }}
-              className="game-zone-confirmation__button game-zone-confirmation__button--cancel"
-            >
-              Отмена
-            </button>
-          </div>
-        </div>
-      )}
-      {pointSelectionMode && (
-        <div className="game-zone-confirmation__container">
-          <p className="game-zone-confirmation__message">
-            Выберите точку для способности
-            <br />
-            <span style={{ color: "rgb(147, 112, 219)" }}>
-              {pendingPointEffect?.name}
-            </span>
-          </p>
-          {pointDestination && (
-            //выбранная координата
-            <div className="point-coordinates-container">
-            <span className="point-coordinates">
-              {pointDestination}
-            </span>
-            {charactersAtPoint.length > 0 && (charactersAtPoint.map((ch) => (
-                <span
-                  style={{
-                    color: matchState.teams.red.characters.some(
-                      (c) => c.name === ch.name
-                    )
-                      ? "#942b2b"
-                      : "#1a5896",
-                  }}
-                >
-                  {ch.name}
-                </span>
-              )))}
-            </div>
-          )}
-          <div className="game-zone-confirmation__button-group">
-          <button
-            className="game-zone-confirmation__button game-zone-pinButton"
-              onClick={() => {
-                setPointSelectionMode(false);
-                setPointCells([]);
-                setPointDestination(null);
-                setSelectionOverlay([]);
-                setPendingPointEffect(null);
-                setAttackAnimations([...charactersAtPoint.map(ch => {
-                  return {
-                    position: ch.position,
-                    damageType: pendingPointEffect.stats.damageType,
-                  }
-                })]);
-                setCharactersAtPoint([]);
-                if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
-                  setPendingMode("move");
-                } else {
-                  setPendingMode(null)
-                }
-              }}
-            >
-              Отмена
-            </button>
-          {pointDestination && (
-            <button
-              onClick={confirmPointEffect}
               className="game-zone-confirmation__button game-zone-pinButton"
-            >
-              Подтвердить
-            </button>)}
-          </div>
-        </div>
-      )}
-      {(pendingMode === "throw" || pendingMode === "putDown") && (
-        <div className="game-zone-confirmation__container">
-          <p className="game-zone-confirmation__message">
-            Выберите клетку для {pendingMode === "throw" ? "броска" : "выкладки"} предмета
-          </p>
-          {throwDestination && (
-            //выбранная координата
-            <div className="point-coordinates-container">
-            <span className="point-coordinates">
-              {throwDestination}
-            </span>
-            </div>
-          )}
-          <div className="game-zone-confirmation__button-group">
-          <button
-            className="game-zone-confirmation__button game-zone-pinButton"
               onClick={() => {
-                if (matchState.teams[teamTurn].remain.moves > 0) {
-                  setPendingMode("move");
-                  setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility, selectedMap.size));
+                if (zoneFixed) {
+                  setZoneFixed(false);
+                  setChargesDistribution({});
+                } else {
+                  handleZoneFixShort(selectionOverlay);
                 }
-                else {
-                  setPendingMode(null)
-                }
-                setThrowDestination(null);
-                setPendingItem(null);
-                setThrowableCells([]);
-                setItemHelperInfo(null);
               }}
             >
-              Отмена
+              {zoneFixed ? "Открепить зону" : "Закрепить зону"}
             </button>
+
+            <div className="game-zone-confirmation__button-group">
+              <button
+                onClick={confirmZoneEffect}
+                className="game-zone-confirmation__button game-zone-confirmation__button--confirm"
+              >
+                Подтвердить
+              </button>
+              <button
+                onClick={() => {
+                  setZoneSelectionMode(false);
+                  setZoneFixed(false);
+                  setSelectionOverlay([]);
+                  setPendingZoneEffect(null);
+                  setCharactersInZone([]);
+                  setChargesDistribution({});
+                  if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
+                    setPendingMode("move");
+                  } else {
+                    setPendingMode(null)
+                  }
+                }}
+                className="game-zone-confirmation__button game-zone-confirmation__button--cancel"
+              >
+                Отмена
+              </button>
+            </div>
           </div>
-        </div>
-      )}
-      {showCharacterInfoPanel && (
-        <CharacterInfoPanel
-          character={selectedCharacter}
-          onClose={handleCloseCharacterModal}
-          onAttack={(ch) => { 
-            if (matchState.teams[teamTurn].remain.actions > 0) {
-              handleAttack(ch)
-            }}}
-          onAbilityClick={handleAbilityClick}
-          onUnselectAttack={() => {
-            if (matchState.teams[teamTurn].remain.moves > 0) {
-              setPendingMode("move");
-            }
-            else {
-              setPendingMode(null)
-            }
-          }}
-          pendingMode={pendingMode}
-          onEffectClick = {handleEffectClick}
-          teamTurn={teamTurn}
-          onItemClick={handleItemClick}
-        />
-      )}
-      {showCharacterInfoPanel && itemHelperInfo && (
-        <div className="tooltip wide">
-          <h5 className="tooltip-header">{itemHelperInfo.name}</h5>
-          <p className="tooltip-description">{itemHelperInfo.description}</p>
-          {itemHelperInfo.owner.team === teamTurn && (
-            <>
-            {!itemHelperInfo.throwable && 
-            <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
-              itemHelperInfo.effect(selectedCharacter)
-              if (itemHelperInfo.isSingleUse) {
-                selectedCharacter.inventory.splice(selectedCharacter.inventory.indexOf(itemHelperInfo), 1)
-                setItemHelperInfo(null)
-                if (matchState.teams[teamTurn].remain.moves > 0) {
-                  setPendingMode("move")
+        )}
+        {beamSelectionMode && (
+          <div className="game-zone-confirmation__container">
+            <p className="game-zone-confirmation__message">
+              Подтвердите направление луча
+              <br />
+              <span style={{ color: "rgb(248, 49, 255)" }}>
+                {pendingBeamEffect?.name}
+              </span>
+            </p>
+
+            {beamFixed && (
+              <ul className="affected-characters-list">
+                {charactersInZone.map((ch) => (
+                  <li key={ch.name}>
+                    <span
+                      style={{
+                        color: matchState.teams.red.characters.some(
+                          (c) => c.name === ch.name
+                        )
+                          ? "#942b2b"
+                          : "#1a5896",
+                      }}
+                    >
+                      {ch.name}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <button
+              className="game-zone-confirmation__button game-zone-pinButton"
+              onClick={() => {
+                if (beamFixed) {
+                  setBeamFixed(false);
                 } else {
-                  setPendingMode(null)
+                  handleBeamFix();
                 }
+              }}
+            >
+              {beamFixed ? "Открепить луч" : "Закрепить луч"}
+            </button>
+
+            <div className="game-zone-confirmation__button-group">
+              <button
+                onClick={confirmBeamEffect}
+                className="game-zone-confirmation__button game-zone-confirmation__button--confirm"
+              >
+                Подтвердить
+              </button>
+              <button
+                onClick={() => {
+                  setBeamSelectionMode(false);
+                  setBeamFixed(false);
+                  setBeamCells([]);
+                  setSelectionOverlay([]);
+                  setPendingBeamEffect(null);
+                  setCharactersInZone([]);
+                  if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
+                    setPendingMode("move");
+                  } else {
+                    setPendingMode(null)
+                  }
+                }}
+                className="game-zone-confirmation__button game-zone-confirmation__button--cancel"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        )}
+        {teleportationMode && (
+          <div className="game-zone-confirmation__container">
+            <p className="game-zone-confirmation__message">
+              Выберите точку для телепортации
+              <br />
+              <span style={{ color: "rgb(147, 112, 219)" }}>
+                {pendingTeleportation?.name}
+              </span>
+            </p>
+
+            <div className="game-zone-confirmation__button-group">
+              <button
+                onClick={() => {
+                  setTeleportationMode(false);
+                  setPendingTeleportation(null);
+                  setTeleportationCells([]);
+                  setTeleportationDestination(null);
+                  setSelectionOverlay([]);
+                  if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
+                    setPendingMode("move");
+                  } else {
+                    setPendingMode(null)
+                  }
+                }}
+                className="game-zone-confirmation__button game-zone-confirmation__button--cancel"
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        )}
+        {pointSelectionMode && (
+          <div className="game-zone-confirmation__container">
+            <p className="game-zone-confirmation__message">
+              Выберите точку для способности
+              <br />
+              <span style={{ color: "rgb(147, 112, 219)" }}>
+                {pendingPointEffect?.name}
+              </span>
+            </p>
+            {pointDestination && (
+              //выбранная координата
+              <div className="point-coordinates-container">
+                <span className="point-coordinates">
+                  {pointDestination}
+                </span>
+                {charactersAtPoint.length > 0 && (charactersAtPoint.map((ch) => (
+                  <span
+                    style={{
+                      color: matchState.teams.red.characters.some(
+                        (c) => c.name === ch.name
+                      )
+                        ? "#942b2b"
+                        : "#1a5896",
+                    }}
+                  >
+                    {ch.name}
+                  </span>
+                )))}
+              </div>
+            )}
+            <div className="game-zone-confirmation__button-group">
+              <button
+                className="game-zone-confirmation__button game-zone-pinButton"
+                onClick={() => {
+                  setPointSelectionMode(false);
+                  setPointCells([]);
+                  setPointDestination(null);
+                  setSelectionOverlay([]);
+                  setPendingPointEffect(null);
+                  setAttackAnimations([...charactersAtPoint.map(ch => {
+                    return {
+                      position: ch.position,
+                      damageType: pendingPointEffect.stats.damageType,
+                    }
+                  })]);
+                  setCharactersAtPoint([]);
+                  if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
+                    setPendingMode("move");
+                  } else {
+                    setPendingMode(null)
+                  }
+                }}
+              >
+                Отмена
+              </button>
+              {pointDestination && (
+                <button
+                  onClick={confirmPointEffect}
+                  className="game-zone-confirmation__button game-zone-pinButton"
+                >
+                  Подтвердить
+                </button>)}
+            </div>
+          </div>
+        )}
+        {pendingMode === "throw" || (pendingMode === "putDown") && (
+          <div className="game-zone-confirmation__container">
+            <p className="game-zone-confirmation__message">
+              Выберите клетку для {pendingMode === "throw" ? "броска предмета" : "выкладки предмета"}
+            </p>
+            {throwDestination && (
+              //выбранная координата
+              <div className="point-coordinates-container">
+                <span className="point-coordinates">
+                  {throwDestination}
+                </span>
+              </div>
+            )}
+            <div className="game-zone-confirmation__button-group">
+              <button
+                className="game-zone-confirmation__button game-zone-pinButton"
+                onClick={() => {
+                  if (matchState.teams[teamTurn].remain.moves > 0) {
+                    setPendingMode("move");
+                    setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility, selectedMap.size));
+                  }
+                  else {
+                    setPendingMode(null)
+                  }
+                  setThrowDestination(null);
+                  setPendingItem(null);
+                  setThrowableCells([]);
+                  setItemHelperInfo(null);
+                }}
+              >
+                Отмена
+              </button>
+            </div>
+          </div>
+        )}
+        {buildingMode && (
+          <div className="game-zone-confirmation__container building-mode-container">
+            <p className="game-zone-confirmation__message">
+              Выберите клетк{pendingItem.name === "Стена (х3)" ? "и" : "у"} для возведения постройки
+            </p>
+            <h5 className="game-zone-confirmation__message">
+              ({buildingDestination?.length || 0}/{pendingItem.name === "Стена (х3)" ? 3 : 1})
+            </h5>
+            {buildingDestination && (
+              <div className="point-coordinates-array-container">
+                {buildingDestination.map((cell, index) => (
+                  <span key={cell} className="array-point-coordinates">
+                    <span className="array-point-coordinates-number">{index + 1}.</span>
+                    {cell}
+                    <button className="array-point-coordinates-cancel-button" onClick={() => {
+                      setBuildingDestination(buildingDestination.filter(c => c !== cell) || []);
+                    }}>
+                      X
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <div className="game-zone-confirmation__button-group">
+              <button
+                className="game-zone-confirmation__button game-zone-pinButton"
+                onClick={() => {
+                  setBuildingMode(false);
+                  setBuildingCells([]);
+                  setBuildingDestination([]);
+                  setSelectionOverlay([]);
+                  setPendingItem(null);
+                  if (matchState.teams[teamTurn].remain.moves > 0) {
+                    setPendingMode("move");
+                  } else {
+                    setPendingMode(null)
+                  }
+                }}
+              >
+                Отмена
+              </button>
+              <button
+                className="game-zone-confirmation__button game-zone-confirmation__button--confirm"
+                onClick={confirmBuilding}
+              >
+                Построить
+              </button>
+            </div>
+          </div>
+        )}
+        {showCharacterInfoPanel && (
+          <CharacterInfoPanel
+            character={selectedCharacter}
+            onClose={handleCloseCharacterModal}
+            onAttack={(ch) => {
+              if (matchState.teams[teamTurn].remain.actions > 0) {
+                handleAttack(ch)
               }
-              matchState.teams[teamTurn].remain.actions -= 1
+            }}
+            onAbilityClick={handleAbilityClick}
+            onUnselectAttack={() => {
               if (matchState.teams[teamTurn].remain.moves > 0) {
                 setPendingMode("move");
-              } else {
+              }
+              else {
                 setPendingMode(null)
-              }}}>
-              Применить (действие)
-            </button>}
-            {itemHelperInfo.throwable && 
-            <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
-              setPendingMode("throw");
-              setPendingItem({...itemHelperInfo})
-              setThrowableCells(calculateThrowableCells(selectedCharacter.position, 5, selectedMap.size));
-            }}>
-              Бросить (действие)
-            </button>}
-            <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
-              setPendingMode("putDown");
-              setPendingItem({...itemHelperInfo})
-              setThrowableCells(calculateThrowableCells(selectedCharacter.position, 1, selectedMap.size));
-            }}>
-              Выложить (действие)
+              }
+            }}
+            pendingMode={pendingMode}
+            onEffectClick={handleEffectClick}
+            teamTurn={teamTurn}
+            onItemClick={handleItemClick}
+          />
+        )}
+        {showCharacterInfoPanel && itemHelperInfo && (
+          <div className="tooltip wide">
+            <h5 className="tooltip-header">{itemHelperInfo.name}</h5>
+            <p className="tooltip-description">{itemHelperInfo.description}</p>
+            {itemHelperInfo.owner.team === teamTurn && (
+              <>
+                {!itemHelperInfo.throwable &&
+                  <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
+                    itemHelperInfo.effect(selectedCharacter)
+                    if (itemHelperInfo.isSingleUse) {
+                      selectedCharacter.inventory.splice(selectedCharacter.inventory.indexOf(itemHelperInfo), 1)
+                      setItemHelperInfo(null)
+                      if (matchState.teams[teamTurn].remain.moves > 0) {
+                        setPendingMode("move")
+                      } else {
+                        setPendingMode(null)
+                      }
+                    }
+                    matchState.teams[teamTurn].remain.actions -= 1
+                    if (matchState.teams[teamTurn].remain.moves > 0) {
+                      setPendingMode("move");
+                    } else {
+                      setPendingMode(null)
+                    }
+                  }}>
+                    Применить (действие)
+                  </button>}
+                {itemHelperInfo.throwable &&
+                  <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
+                    setPendingMode("throw");
+                    setPendingItem({ ...itemHelperInfo })
+                    setThrowableCells(calculateThrowableCells(selectedCharacter.position, 5, selectedMap.size));
+                  }}>
+                    Бросить (действие)
+                  </button>}
+                {itemHelperInfo.type === "building" &&
+                  <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
+                    setPendingItem({ ...itemHelperInfo })
+                    chooseBuildingPosition(itemHelperInfo)
+                  }}>
+                    Построить ({itemHelperInfo.name === "Стена (х3)" && "одну или все"})
+                  </button>
+                }
+                <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
+                  setPendingMode("putDown");
+                  setPendingItem({ ...itemHelperInfo })
+                  setThrowableCells(calculateThrowableCells(selectedCharacter.position, 1, selectedMap.size));
+                }}>
+                  Выложить (действие)
+                </button>
+              </>
+            )}
+            <button className="tooltip-button" onClick={() => setItemHelperInfo(null)}>
+              Отменить
             </button>
-            </>
-          )}
-          <button className="tooltip-button" onClick={() => setItemHelperInfo(null)}>
-            Отменить
-          </button>
-        </div>
-      )}
-      {showCharacterInfoPanel && clickedEffectOnPanel && (
-        <div className="tooltip">
-          <p className="tooltip-description">{clickedEffectOnPanel.description}</p>
-          {clickedEffectOnPanel.canCancel && (
-            <button className="tooltip-button" onClick={() => handleCancelEffect()}>
-              Снять эффект (действие)
-            </button>
-          )}
-        </div>
-      )}
-      {dynamicTooltip && (
-        <div className="dynamic-tooltip">
-          <div className="dynamic-tooltip-image-container">
-            <img src={`/src/assets/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
           </div>
-          <h5 className="dynamic-tooltip-title">{dynamicTooltip.title}</h5>
-          { dynamicTooltip.parameters &&
-          <div className="parametersHP-bar">
-            <div className="parametersHP-fill" style={{width: `${(dynamicTooltip.parameters.current.currentHP / dynamicTooltip.parameters.stats.HP) * 100}%`}}/>
-            <div className="parametersHP-value">{dynamicTooltip.parameters.current.currentHP}/{dynamicTooltip.parameters.stats.HP}</div>
+        )}
+        {showCharacterInfoPanel && clickedEffectOnPanel && (
+          <div className="tooltip">
+            <p className="tooltip-description">{clickedEffectOnPanel.description}</p>
+            {clickedEffectOnPanel.canCancel && (
+              <button className="tooltip-button" onClick={() => handleCancelEffect()}>
+                Снять эффект (действие)
+              </button>
+            )}
           </div>
-          }
-          { dynamicTooltip.parameters &&
-          <div className="dynamic-tooltip-parameters-grid">
-          {Object.entries(dynamicTooltip.parameters.stats)
-                .filter(([key]) => !['HP', 'Мана'].includes(key))
-                .map(([key, value]) => (
-                  <div key={key} className="parameters-stat-item">
-                    <div className="parameters-stat-name">{key}</div>
-                    <div className="parameters-stat-value">{dynamicTooltip.parameters.current[getParameterName(key)]}/{key === "Броня" ? 5 : value}</div>
-                  </div>
-                ))}
+        )}
+        {dynamicTooltip && (
+          <div className="dynamic-tooltip">
+            <div className="dynamic-tooltip-image-container">
+              <img src={`/src/assets/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
+            </div>
+            <h5 className="dynamic-tooltip-title">{dynamicTooltip.title}</h5>
+            {dynamicTooltip.parameters &&
+              <div className="parametersHP-bar">
+                <div className="parametersHP-fill" style={{ width: `${(dynamicTooltip.parameters.current.currentHP / dynamicTooltip.parameters.stats.HP) * 100}%` }} />
+                <div className="parametersHP-value">{dynamicTooltip.parameters.current.currentHP}/{dynamicTooltip.parameters.stats.HP}</div>
+              </div>
+            }
+            {dynamicTooltip.parameters &&
+              <div className="dynamic-tooltip-parameters-grid">
+                {Object.entries(dynamicTooltip.parameters.stats)
+                  .filter(([key]) => !['HP', 'Мана'].includes(key))
+                  .map(([key, value]) => (
+                    value != 0 && <div key={key} className="parameters-stat-item">
+                      <div className="parameters-stat-name">{key}</div>
+                      <div className="parameters-stat-value">{dynamicTooltip.parameters.current[getParameterName(key)]}/{key === "Броня" ? 5 : value}</div>
+                    </div>
+                  ))}
+              </div>
+            }
+            <p className="dynamic-tooltip-description">{dynamicTooltip.description}</p>
+            <div className="dynamic-tooltip-actions">
+              {selectedCharacter && dynamicTooltip.actions.length > 0 && dynamicTooltip.actions.map((action) => (
+                <button className="tooltip-button" onClick={action.onClick} disabled={matchState.teams[teamTurn].remain.actions === 0}>{action.name} (Действие)</button>
+              ))}
+              <button className="tooltip-button" onClick={() => setDynamicTooltip(null)}>Закрыть</button>
+            </div>
           </div>
-          }
-          <p className="dynamic-tooltip-description">{dynamicTooltip.description}</p>
-          <div className="dynamic-tooltip-actions">
-          {selectedCharacter && dynamicTooltip.actions.length > 0 && dynamicTooltip.actions.map((action) => (
-            <button className="tooltip-button" onClick={action.onClick} disabled={matchState.teams[teamTurn].remain.actions === 0}>{action.name} (Действие)</button>
-          ))}
-          <button className="tooltip-button" onClick={() => setDynamicTooltip(null)}>Закрыть</button>
-          </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
     </div>
   );
 };
