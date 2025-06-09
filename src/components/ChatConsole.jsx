@@ -1300,20 +1300,22 @@ const ChatConsole = ({ teams, selectedMap }) => {
   };
 
   const handleAttackCharacter = (character) => {
-    const result = attack({ caster: selectedCharacter }, "neutral", [character], selectedCharacter.currentDamage, selectedCharacter.advancedSettings.damageType, matchState);
+    const results = attack({ caster: selectedCharacter }, "neutral", [character], selectedCharacter.currentDamage, selectedCharacter.advancedSettings.damageType);
     matchState.teams[selectedCharacter.team].remain.actions -= 1;
 
-    if (result.hpDamage > 0) {
+    if (results[0].hpDamage > 0) {
       selectedCharacter.currentHP += Math.max(selectedCharacter.currentHP, selectedCharacter.currentHP + selectedCharacter.advancedSettings.vampirism)
     }
-    if (result.currentHP === 0) {
+    if (results[0].currentHP === 0) {
+      console.log("Character killed", character);
+      matchState.teams[selectedCharacter.team].gold += 500;
       selectedCharacter.effects.map((effect) => {
         if (effect.byKill) {
           effect.byKill(selectedCharacter, character)
         }
       })
     }
-    return result;
+    return results[0];
   };
 
   const handleBuyItem = (item) => {
@@ -1380,7 +1382,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
     setBuildingCells(calculateBuildingCells(selectedCharacter.position, selectedCharacter, selectedMap.size));
   }
 
-  const calculateBuildingAllowance = (coordinates) => {    
+  const calculateBuildingAllowance = (coordinates) => {
     console.log(buildingCells.includes(coordinates) && !buildingDestination.includes(coordinates) && buildingDestination.length < (pendingItem.name === "Стена (х3)" ? pendingItem.left : 1));
     return buildingCells.includes(coordinates) && !buildingDestination.includes(coordinates) && buildingDestination.length < (pendingItem.name === "Стена (х3)" ? pendingItem.left : 1);
   }

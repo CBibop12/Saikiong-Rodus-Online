@@ -13,7 +13,7 @@ import { removeBuilding } from "./building";
  * @param {string}   damageType      – "physical"|"technical"|"magical"|"pure" или русские эквиваленты
  * @returns {null | { currentHP:number, currentArmor:number, hpDamage:number }[]}
  */
-export function attack(attacker, affiliate, targets, damage, damageType, matchState) {
+export function attack(attacker, affiliate, targets, damage, damageType) {
     // Проверяем, что targets - это массив
     if (!Array.isArray(targets)) {
         targets = [targets];
