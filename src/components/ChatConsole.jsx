@@ -1000,6 +1000,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
     const character = redChar || blueChar;
     const object = matchState.objectsOnMap.find(obj => obj.position === cellCoord && obj.type === "item");
     const building = matchState.objectsOnMap.find(obj => obj.position === cellCoord && obj.type === "building");
+
     // Определяем принадлежность храма
     let churchClass = '';
     if (cell.initial === "red church" || cell.initial === "blue church") {
@@ -1008,6 +1009,54 @@ const ChatConsole = ({ teams, selectedMap }) => {
           churchClass = church.currentAffiliation === "red" ? 'red-church' : 'blue-church';
         }
       }
+    }
+
+    // Функция для определения части большого здания
+    const getBuildingPart = (buildingType) => {
+      // Ищем первую клетку этого типа здания
+
+      if (selectedMap.map[rowIndex - 1][colIndex - 1].initial === buildingType) return 4; // Верхний левый угол
+      if (selectedMap.map[rowIndex - 1][colIndex + 1].initial === buildingType) return 3; // Верхний правый угол
+      if (selectedMap.map[rowIndex + 1][colIndex - 1].initial === buildingType) return 2; // Нижний левый угол
+      if (selectedMap.map[rowIndex + 1][colIndex + 1].initial === buildingType) return 1; // Нижний правый угол
+      return null;
+    };
+
+    // Определяем, какое большое здание должно отображаться в этой клетке
+    let largeBuildingImage = null;
+    let buildingPart = null;
+
+    switch (cell.initial) {
+      case "red base":
+        buildingPart = getBuildingPart("red base");
+        if (buildingPart) {
+          largeBuildingImage = `/src/assets/cells/red-base-${buildingPart}.png`;
+        }
+        break;
+      case "blue base":
+        buildingPart = getBuildingPart("blue base");
+        if (buildingPart) {
+          largeBuildingImage = `/src/assets/cells/blue-base-${buildingPart}.png`;
+        }
+        break;
+      case "laboratory":
+        buildingPart = getBuildingPart("laboratory");
+        if (buildingPart) {
+          largeBuildingImage = `/src/assets/cells/lab-${buildingPart}.png`;
+        }
+        break;
+      case "magic shop":
+        buildingPart = getBuildingPart("magic shop");
+        if (buildingPart) {
+          largeBuildingImage = `/src/assets/cells/magic-store-${buildingPart}.png`;
+        }
+        break;
+      case "armory":
+        buildingPart = getBuildingPart("armory");
+        if (buildingPart) {
+          largeBuildingImage = `/src/assets/cells/armory-${buildingPart}.png`;
+        }
+        break;
     }
 
     return (
@@ -1038,6 +1087,14 @@ const ChatConsole = ({ teams, selectedMap }) => {
             />
           </div>
         }
+        {largeBuildingImage && (
+          <div className="positioned-object">
+            <img
+              src={largeBuildingImage}
+              className="object-image building-image"
+            />
+          </div>
+        )}
       </div>
     );
   };
