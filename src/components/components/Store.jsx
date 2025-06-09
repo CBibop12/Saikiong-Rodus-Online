@@ -7,6 +7,16 @@ import { X } from 'lucide-react';
 const Store = ({matchState, character, storeType, onClose, onBuy }) => {
   const [expandedItems, setExpandedItems] = useState({});
 
+  const nameOf = (key) => {
+    switch (key) {
+      case "availability":
+        return "Доступность";
+      case "passiveAbility":
+        return "Пассивная способность";
+      case "activeAbility":
+        return "Активная способность";
+    }
+  }
   const toggleItem = (itemId) => {
     setExpandedItems(prev => ({
       ...prev,
@@ -79,7 +89,17 @@ const Store = ({matchState, character, storeType, onClose, onBuy }) => {
             </div>
             {expandedItems[item.name] && (
               <div className="item-description">
-                {item.description}
+                {item.shopType === "Лаборатория" || item.shopType === "Оружейная" && (
+                  item.description
+                )}
+                {item.shopType === "Магический" && (
+                  Object.entries(item.description).filter(([key]) => item.description[key] != null).map(([key, value]) => (
+                    <div key={key} className="store-item-description-item">
+                      <h3 className="store-item-description-title">{nameOf(key)}</h3>
+                      {value}
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>

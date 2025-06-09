@@ -220,15 +220,15 @@ const executeCommand = (object, context) => {
         charObj.currentMana -= costValue;
       }
     } else {
-      if (matchState.teams[team].gold < costValue) {
+      if (matchState.teams[findCharacter(characterName).team].gold < costValue) {
         addActionLog(
-          `Недостаточно золота у команды ${team} для покупки ${item}`
+          `Недостаточно золота у команды ${findCharacter(characterName).team} для покупки ${item}`
         );
         matchState.teams[findCharacter(characterName).team].remain.actions -= 1;
         return;
       }
-      matchState.teams[team].gold -= costValue;
-      if (team === "red") setTeam1Gold(matchState.teams.red.gold);
+      matchState.teams[findCharacter(characterName).team].gold -= costValue;
+      if (findCharacter(characterName).team === "red") setTeam1Gold(matchState.teams.red.gold);
       else setTeam2Gold(matchState.teams.blue.gold);
     }
     if (
@@ -237,7 +237,7 @@ const executeCommand = (object, context) => {
       item !== "Усиление урона"
     ) {
       addActionLog(
-        `${cleanCharacter} не имеет свободного места для покупки ${item}`
+        `${characterName} не имеет свободного места для покупки ${item}`
       );
       return;
     }
@@ -254,82 +254,14 @@ const executeCommand = (object, context) => {
     } else if (item === "Усиление урона") {
       const result = useDamageBoostEffect(charObj);
       addActionLog(result.message);
-    } else if (item === "Философский камень") {
-      const result = applyPhilosopherStonePassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Корона Ра") {
-      const result = applyCoronaRaPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Изумруд времени") {
-      const result = applyEmeraldTimePassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Обращатель времени") {
-      addActionLog(`${cleanCharacter} покупает Обращатель времени`);
-    } else if (item === "Уроборос") {
-      addActionLog(`${cleanCharacter} покупает Уроборос`);
-      charObj.inventory.push({ name: item });
-    } else if (item === "Сапоги света") {
-      const result = applyLightBootsPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Амулет равновесия") {
-      const result = applyBalanceAmuletPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Рюкзак") {
-      const result = applyBackpackPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Перчатка повышенного урона") {
-      const result = useDamageBoostEffect
-        ? useDamageBoostEffect(charObj)
-        : applyGlovePassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Пространственный тетраэдр") {
-      const result = useSpatialTetrahedronActive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Скипетр Кроноса") {
-      const result = applyCronosScepterPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Корона Лича") {
-      const result = applyLichCrownPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Кольцо ветров") {
-      const result = applyWindRingPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Кристалл маны") {
-      const result = applyManaCrystalPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Эльфийский плащ") {
-      const result = applyElvenCloakPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Катана") {
-      const result = applyKatanaPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Перчатка Мидаса") {
-      const result = applyMidasGlovePassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Телескоп") {
-      const result = applyTelescopePassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Алый бокал") {
-      const result = applyScarletGobletPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Сумеречный плащ") {
-      const result = applyTwilightCloakPassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Кирка кобольда") {
-      const result = applyKoboldPickaxePassive(charObj);
-      addActionLog(result.message);
-    } else if (item === "Ртутные сапоги") {
-      const result = applyMercuryBootsPassive(charObj);
-      addActionLog(result.message);
-    } else {
-      addActionLog(`${charObj.name} покупает ${item}`);
-    }
+    } 
     if (
       charObj.inventory.length < 3 &&
       item !== "Броня" &&
       item !== "Усиление урона"
     ) {
       charObj.inventory.push({...itemData, left: item === "Стена (х3)" ? 3 : undefined, id: generateId() });
+      itemData.onWear ? itemData.onWear(charObj) : null;
     }
 
     matchState.teams[findCharacter(characterName).team].remain.actions -= 1;
