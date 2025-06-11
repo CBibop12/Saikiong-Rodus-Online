@@ -525,3 +525,8 @@
   background-size: cover;
   background-position: center;
 }
+.grid-cell.mob-spawnpoint {
+  background-image: url('/src/assets/cells/mobSpawnpoint.png');
+  background-size: cover;
+  background-position: center;
+}

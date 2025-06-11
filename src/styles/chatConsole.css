@@ -34,6 +34,12 @@
   background-position: center;
 }
 
+.game-console.hochgakVillage {
+  background-image: url('../assets/images/derevnyahachgok.jpg');
+  background-size: cover;
+  background-position: center;
+}
+
 .left-panel {
   padding: 15px;
   display: flex;

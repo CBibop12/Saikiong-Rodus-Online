@@ -988,6 +988,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
       case 'blue church': return `${baseClass} ${churchClass}-cover`;
       case 'redChurch powerpoint': return `${baseClass} red-church-powerpoint`;
       case 'blueChurch powerpoint': return `${baseClass} blue-church-powerpoint`;
+      case 'mob spawnpoint': return `${baseClass} mob-spawnpoint`;
       default: return baseClass;
     }
   };
@@ -3033,8 +3034,16 @@ const ChatConsole = ({ teams, selectedMap }) => {
     }
   };
 
+  const getMapName = () => {
+    switch (matchState.selectedMap) {
+      case "pixie-fields": return "pixieFields";
+      case "ilmarin-fortress": return "ilmarinFortress";
+      case "hochgak-village": return "hochgakVillage";
+    }
+  }
+
   return (
-    <div className={`game-console ${matchState.selectedMap === "pixie-fields" ? "pixieFields" : "ilmarinFortress"}`}>
+    <div className={`game-console ${getMapName()}`}>
       {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn} handleCloseFinale={handleCloseFinale} handleDownloadStats={handleDownloadStats} />}
       <div className="game-console-overlay" style={{ backgroundColor: `${teamTurn === "red" ? "rgba(102, 24, 24, 0.4)" : "rgba(34, 34, 139, 0.3)"}` }}></div>
       {lastNotification && (

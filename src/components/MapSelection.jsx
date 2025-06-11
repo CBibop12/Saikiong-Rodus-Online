@@ -34,6 +34,7 @@ const MapSelection = ({ maps, onMapSelect }) => {
       case 'blue church': return `${baseClass} blue-church-cover`;
       case 'redChurch powerpoint': return `${baseClass} red-church-powerpoint`;
       case 'blueChurch powerpoint': return `${baseClass} blue-church-powerpoint`;
+      case 'mob spawnpoint': return `${baseClass} mob-spawnpoint`;
       default: return baseClass;
     }
   };
