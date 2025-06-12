@@ -26,7 +26,7 @@ import Notification from './Notification';
 import { attack, attackBase, attackBuilding } from "./scripts/attack";
 import Store from "./components/Store";
 import GameHeader from "./components/GameHeader";
-import EndRoundButton from "./components/EndRoundButton";
+import ControlButton from "./components/ControlButton";
 import BaseInfo from "./components/BaseInfo";
 import Finale from "./components/FinaleWindow";
 import { generateId, removeEffect } from "../effects";
@@ -3177,6 +3177,13 @@ const ChatConsole = ({ teams, selectedMap }) => {
         selectedRecipient={selectedRecipient}
         setSelectedRecipient={setSelectedRecipient}
       />
+        <PauseModal
+          isPaused={isPaused}
+          matchState={matchState}
+          onResume={handleResume}
+          handleDownloadCurrentMatch={handleDownloadCurrentMatch}
+          handleDownloadAllMatches={handleDownloadAllMatches}
+        />
       <div className="game-console-overlay" style={{ backgroundColor: `${teamTurn === "red" ? "rgba(102, 24, 24, 0.4)" : "rgba(34, 34, 139, 0.3)"}` }}></div>
       {lastNotification && (
         <Notification
@@ -3205,7 +3212,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
       />
       <BaseInfo inventory={matchState.teams.red.inventory} gold={matchState.teams.red.gold} team="red" remain={matchState.teams.red.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} />
       <BaseInfo inventory={matchState.teams.blue.inventory} gold={matchState.teams.blue.gold} team="blue" remain={matchState.teams.blue.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} />
-      <EndRoundButton round={matchState.turn} handleEndRound={handleEndTurn} />
+      <ControlButton round={matchState.turn} handleEndRound={handleEndTurn} handlePause={handlePause} />
 
       <div className="game-container">
         {renderGameMap()}
@@ -3218,13 +3225,6 @@ const ChatConsole = ({ teams, selectedMap }) => {
           updateMatchState={updateMatchState}
           matchState={matchState}
         />
-        <PauseModal
-          isPaused={isPaused}
-          matchState={matchState}
-          onResume={handleResume}
-          handleDownloadCurrentMatch={handleDownloadCurrentMatch}
-          handleDownloadAllMatches={handleDownloadAllMatches}
-        ></PauseModal>
         {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn} />}
         {cellEffectsInfo && (
           <div className="cell-effects-tooltip">
