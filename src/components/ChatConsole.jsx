@@ -31,6 +31,7 @@ import BaseInfo from "./components/BaseInfo";
 import Finale from "./components/FinaleWindow";
 import { generateId, removeEffect } from "../effects";
 import { startingWalls } from "./scripts/building";
+import ShopDistribution from "./components/ShopDistribution";
 /**
  * ВЫНОСИМ ВНЕ КОМПОНЕНТА, чтобы она не пересоздавалась на каждом рендере
  * и не вызывала повторный useEffect.
@@ -256,6 +257,12 @@ const ChatConsole = ({ teams, selectedMap }) => {
   const [store, setStore] = useState(null);
 
   const [finalWindow, setFinalWindow] = useState(false)
+
+  const [showManaDistribution, setShowManaDistribution] = useState(false);
+  const [showRecipientSelection, setShowRecipientSelection] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [manaDistribution, setManaDistribution] = useState({});
+  const [selectedRecipient, setSelectedRecipient] = useState(null);
 
   // Эффект броска монетки в начале игры и инициализация объектов на карте
   useEffect(() => {
@@ -3042,9 +3049,134 @@ const ChatConsole = ({ teams, selectedMap }) => {
     }
   }
 
+  const handleManaDistributionChange = (characterName, value) => {
+    setManaDistribution(prev => ({
+      ...prev,
+      [characterName]: Math.min(
+        Number(value),
+        matchState.teams[teamTurn].characters.find(ch => ch.name === characterName).currentMana
+      )
+    }));
+  };
+
+  const handleManaDistributionNext = () => {
+    const totalDistributed = Object.values(manaDistribution).reduce((sum, mana) => sum + mana, 0);
+    if (totalDistributed === selectedItem.price) {
+      setShowManaDistribution(false);
+      setShowRecipientSelection(true);
+    }
+  };
+
+  const handleFinalizePurchase = () => {
+    if (!selectedRecipient) return;
+
+    // Обновляем ману у персонажей
+    Object.entries(manaDistribution).forEach(([name, mana]) => {
+      if (mana > 0) {
+        const character = matchState.teams[teamTurn].characters.find(ch => ch.name === name);
+        character.currentMana -= mana;
+        // Устанавливаем перезарядку магазина
+        const cooldownField = store === 'laboratory' ? 'labCooldown' : 'armoryCooldown';
+        character[cooldownField] = 6;
+      }
+    });
+
+    // Добавляем предмет получателю
+    if (selectedItem.type === "wearable") {
+      selectedRecipient.wearableItems = selectedRecipient.wearableItems || [];
+      selectedRecipient.wearableItems.push(selectedItem);
+      if (selectedItem.onWear) {
+        selectedItem.onWear(selectedRecipient);
+      }
+    } else {
+      selectedRecipient.inventory.push(selectedItem);
+    }
+
+    // Устанавливаем перезарядку магазина для получателя
+    const cooldownField = store === 'laboratory' ? 'labCooldown' : 'armoryCooldown';
+    selectedRecipient[cooldownField] = 6;
+
+    // Сбрасываем состояние
+    setShowManaDistribution(false);
+    setShowRecipientSelection(false);
+    setSelectedItem(null);
+    setManaDistribution({});
+    setSelectedRecipient(null);
+    setStore(null);
+  };
+
+  const alliesNearStore = () => {
+    // Получаем всех живых союзников
+    const allies = matchState.teams[selectedCharacter.team].characters.filter(ch => ch.currentHP > 0);
+
+    // Получаем инициал магазина в зависимости от типа
+    const storeInitial = store
+    // Находим все клетки магазинов данного типа
+    const storeCells = [];
+    for (let y = 0; y < selectedMap.map.length; y++) {
+      for (let x = 0; x < selectedMap.map[y].length; x++) {
+        if (selectedMap.map[y][x].initial === storeInitial) {
+          storeCells.push({ x: x + 1, y: y + 1 });
+        }
+      }
+    }
+
+    // Находим соседние клетки для каждого магазина
+    const adjacentCells = new Set();
+    storeCells.forEach(store => {
+      const directions = [
+        { x: store.x + 1, y: store.y },
+        { x: store.x - 1, y: store.y },
+        { x: store.x, y: store.y + 1 },
+        { x: store.x, y: store.y - 1 }
+      ];
+
+      directions.forEach(dir => {
+        if (dir.x >= 0 && dir.x < selectedMap.map[0].length &&
+          dir.y >= 0 && dir.y < selectedMap.map.length &&
+          selectedMap.map[dir.y][dir.x] !== storeInitial) {
+          adjacentCells.add(`${dir.x}-${dir.y}`);
+        }
+      });
+    });
+
+    return allies.filter(ally => adjacentCells.has(ally.position));
+  }
+
+  const handleComplexBuy = (item) => {
+    const allies = alliesNearStore();
+    if (allies.length === 1) {
+      handleBuyItem(item);
+    } else {
+      setSelectedItem(item);
+      const initialDistribution = {};
+      allies.forEach(ally => {
+        initialDistribution[ally.name] = 0;
+      });
+      setManaDistribution(initialDistribution);
+      setShowManaDistribution(true);
+    }
+  }
+
   return (
     <div className={`game-console ${getMapName()}`}>
       {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn} handleCloseFinale={handleCloseFinale} handleDownloadStats={handleDownloadStats} />}
+      <ShopDistribution
+        matchState={matchState}
+        teamTurn={teamTurn}
+        manaDistribution={manaDistribution}
+        showManaDistribution={showManaDistribution}
+        setShowManaDistribution={setShowManaDistribution}
+        showRecipientSelection={showRecipientSelection}
+        setShowRecipientSelection={setShowRecipientSelection}
+        selectedItem={selectedItem}
+        alliesNearStore={alliesNearStore}
+        handleManaDistributionChange={handleManaDistributionChange}
+        handleManaDistributionNext={handleManaDistributionNext}
+        handleFinalizePurchase={handleFinalizePurchase}
+        selectedRecipient={selectedRecipient}
+        setSelectedRecipient={setSelectedRecipient}
+      />
       <div className="game-console-overlay" style={{ backgroundColor: `${teamTurn === "red" ? "rgba(102, 24, 24, 0.4)" : "rgba(34, 34, 139, 0.3)"}` }}></div>
       {lastNotification && (
         <Notification
@@ -3058,7 +3190,9 @@ const ChatConsole = ({ teams, selectedMap }) => {
           character={selectedCharacter ? selectedCharacter : null}
           storeType={store}
           onClose={() => setStore(null)}
-          onBuy={handleBuyItem}
+          onBuy={handleComplexBuy}
+          selectedMap={selectedMap}
+          alliesNearStore={alliesNearStore}
         />
       )}
       <GameHeader
@@ -3352,6 +3486,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
                 </span>
                 {charactersAtPoint.length > 0 && (charactersAtPoint.map((ch) => (
                   <span
+                    key={ch.name}
                     style={{
                       color: matchState.teams.red.characters.some(
                         (c) => c.name === ch.name
