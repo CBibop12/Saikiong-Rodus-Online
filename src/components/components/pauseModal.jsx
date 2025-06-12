@@ -1,6 +1,6 @@
 //eslint-disable-next-line
 import { useState } from 'react';
-import { Volume2, Music, Settings, LogOut, Play, Download } from 'lucide-react';
+import { Volume2, Music, Settings, LogOut, Play, Download, MessageCircleMore, } from 'lucide-react';
 
 const CLEAR_KEYS = [
   'bigMatchHistory',
@@ -63,6 +63,16 @@ const PauseModal = ({ isPaused, matchState, onResume, handleDownloadCurrentMatch
                 <Settings size={24} />
                 <span>Настройки</span>
               </button>
+              <div className="pause-actions-row">
+                <button className="action-button" onClick={() => window.open('https://saikiongrodus.freeflarum.com', '_blank')}>
+                  <MessageCircleMore size={24} />
+                  <span>Форум</span>
+                </button>
+                <button className="action-button" onClick={() => window.open('https://t.me/+KYaTJhK3xH9jY2M6', '_blank')}>
+                  <MessageCircleMore size={24} />
+                  <span>Сообщество</span>
+                </button>
+              </div>
               <div className="pause-actions-row">
                 <button className="action-button leave" onClick={handleLeave}>
                   <LogOut size={24} />
