@@ -145,7 +145,7 @@
   padding-bottom: 10px;
 }
 
-.store-modal-overlay {
+.store-modal-overlay, .pause-modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
@@ -158,7 +158,7 @@
   z-index: 2000;
 }
 
-.store-modal-content {
+.store-modal-content, .pause-modal {
   background: linear-gradient(to bottom, rgb(118, 66, 28), rgb(64, 40, 15));
   padding: 30px;
   min-width: 400px;
@@ -166,6 +166,10 @@
   border: 2px solid #D4AF37;
   color: #FFD700;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.pause-modal {
+  min-width: 600px;
 }
 
 .store-modal-content h3 {
