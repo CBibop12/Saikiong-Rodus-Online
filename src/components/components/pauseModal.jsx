@@ -1,6 +1,6 @@
 //eslint-disable-next-line
 import { useState } from 'react';
-import { Volume2, Music, Settings, LogOut, Play, Download, MessageCircleMore, } from 'lucide-react';
+import { Volume2, Music, Settings, LogOut, Play, Download, MessageCircleMore, Users, } from 'lucide-react';
 
 const CLEAR_KEYS = [
   'bigMatchHistory',
@@ -69,7 +69,7 @@ const PauseModal = ({ isPaused, matchState, onResume, handleDownloadCurrentMatch
                   <span>Форум</span>
                 </button>
                 <button className="action-button" onClick={() => window.open('https://t.me/+KYaTJhK3xH9jY2M6', '_blank')}>
-                  <MessageCircleMore size={24} />
+                  <Users size={24} />
                   <span>Сообщество</span>
                 </button>
               </div>
