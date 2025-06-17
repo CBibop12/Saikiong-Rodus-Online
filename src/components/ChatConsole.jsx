@@ -705,11 +705,10 @@ const ChatConsole = ({ teams, selectedMap }) => {
     // Функция для определения части большого здания
     const getBuildingPart = (buildingType) => {
       // Ищем первую клетку этого типа здания
-
-      if (selectedMap.map[rowIndex - 1][colIndex - 1].initial === buildingType) return 4; // Верхний левый угол
-      if (selectedMap.map[rowIndex - 1][colIndex + 1].initial === buildingType) return 3; // Верхний правый угол
-      if (selectedMap.map[rowIndex + 1][colIndex - 1].initial === buildingType) return 2; // Нижний левый угол
-      if (selectedMap.map[rowIndex + 1][colIndex + 1].initial === buildingType) return 1; // Нижний правый угол
+      if (selectedMap.map[rowIndex - 1]?.[colIndex - 1]?.initial === buildingType) return 4; // Верхний левый угол
+      if (selectedMap.map[rowIndex - 1]?.[colIndex + 1]?.initial === buildingType) return 3; // Верхний правый угол
+      if (selectedMap.map[rowIndex + 1]?.[colIndex - 1]?.initial === buildingType) return 2; // Нижний левый угол
+      if (selectedMap.map[rowIndex + 1]?.[colIndex + 1]?.initial === buildingType) return 1; // Нижний правый угол
       return null;
     };
 

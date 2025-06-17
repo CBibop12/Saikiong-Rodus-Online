@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from 'react';
+/* eslint-disable react/prop-types */
+import { useState, useEffect } from 'react';
 import { Map as MapIcon } from 'lucide-react';
 import "../styles/mapSelection.css";
+import { cellHasType, stringFromCoord } from './scripts/tools/mapStore';
 
 const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => {
   // Состояния для выпадающего меню
@@ -30,17 +32,16 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
     const [col, row] = cellCoord.split('-').map(Number);
     const directions = [
       [-1, -1], [-1, 0], [-1, 1],
-      [0, -1],          [0, 1],
-      [1, -1],  [1, 0], [1, 1]
+      [0, -1], [0, 1],
+      [1, -1], [1, 0], [1, 1]
     ];
 
     for (const [dx, dy] of directions) {
       const newCol = col + dx - 1;
       const newRow = row + dy - 1;
-      if (newCol >= 0 && newCol < selectedMap.size[0] && 
-          newRow >= 0 && newRow < selectedMap.size[1]) {
-        const neighborCell = selectedMap.map[newRow][newCol];
-        if (neighborCell.initial === 'red base' || neighborCell.initial === 'blue base') {
+      if (newCol >= 0 && newCol < selectedMap.size[0] &&
+        newRow >= 0 && newRow < selectedMap.size[1]) {
+        if (cellHasType(["red base", "blue base"], [newCol, newRow], selectedMap)) {
           return true;
         }
       }
@@ -71,13 +72,13 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
       const colNumber = colIndex + 1;
       const isLeftSide = colNumber <= 20;
       const teamKey = isLeftSide ? 'team1' : 'team2';
-      
+
       const unpositionedCharacters = localTeams[teamKey].filter(ch => !ch.position);
-      
+
       if (unpositionedCharacters.length > 0) {
-        setDropdownPosition({ 
-          x: event.clientX, 
-          y: event.clientY 
+        setDropdownPosition({
+          x: event.clientX,
+          y: event.clientY
         });
         setSelectedCellCoords({ row: rowIndex, col: colIndex });
         setAvailableCharacters(unpositionedCharacters.map(char => ({
@@ -92,17 +93,17 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
   // Обработчик выбора персонажа из выпадающего меню
   const handleDropdownSelect = (character, team) => {
     if (!selectedCellCoords) return;
-    
+
     const coordinates = `${selectedCellCoords.col + 1}-${selectedCellCoords.row + 1}`;
     const teamKey = team === 1 ? 'team1' : 'team2';
-    
+
     const updatedTeam = localTeams[teamKey].map(ch => {
       if (ch.name === character.name) {
         return { ...ch, position: coordinates };
       }
       return ch;
     });
-    
+
     setLocalTeams(prev => ({ ...prev, [teamKey]: updatedTeam }));
     setShowDropdown(false);
     setSelectedCellCoords(null);
@@ -113,7 +114,7 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
     if (!showDropdown || availableCharacters.length === 0) return null;
 
     return (
-      <div 
+      <div
         className="character-dropdown"
         style={{
           position: 'fixed',
@@ -175,19 +176,77 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
 
   // Рендер отдельной ячейки
   const renderCell = (cell, rowIndex, colIndex) => {
-    const cellCoord = `${colIndex + 1}-${rowIndex + 1}`;
-    const redChar = localTeams.team1.find(ch => ch.position === cellCoord);
-    const blueChar = localTeams.team2.find(ch => ch.position === cellCoord);
-    const character = redChar || blueChar;
+    const cellCoord = stringFromCoord([colIndex, rowIndex]);
+    const character = localTeams.team1.find(ch => ch.position === cellCoord) || localTeams.team2.find(ch => ch.position === cellCoord);
+
+    // Функция для определения части большого здания
+    const getBuildingPart = (buildingType) => {
+      // Ищем первую клетку этого типа здания
+      if (selectedMap.map[rowIndex - 1]?.[colIndex - 1]?.initial === buildingType) return 4; // Верхний левый угол
+      if (selectedMap.map[rowIndex - 1]?.[colIndex + 1]?.initial === buildingType) return 3; // Верхний правый угол
+      if (selectedMap.map[rowIndex + 1]?.[colIndex - 1]?.initial === buildingType) return 2; // Нижний левый угол
+      if (selectedMap.map[rowIndex + 1]?.[colIndex + 1]?.initial === buildingType) return 1; // Нижний правый угол
+      return null;
+    };
+
+    // Определяем, какое большое здание должно отображаться в этой клетке
+    let largeBuildingImage = null;
+    let buildingPart = null;
+
+    switch (cell.initial) {
+      case "red base":
+        console.log("red base");
+        buildingPart = getBuildingPart("red base");
+        if (buildingPart) {
+          largeBuildingImage = `/src/assets/cells/red-base-${buildingPart}.png`;
+        }
+        break;
+      case "blue base":
+        console.log("blue base");
+        buildingPart = getBuildingPart("blue base");
+        if (buildingPart) {
+          largeBuildingImage = `/src/assets/cells/blue-base-${buildingPart}.png`;
+        }
+        break;
+      case "laboratory":
+        console.log("laboratory");
+        buildingPart = getBuildingPart("laboratory");
+        if (buildingPart) {
+          largeBuildingImage = `/src/assets/cells/lab-${buildingPart}.png`;
+        }
+        break;
+      case "magic shop":
+        console.log("magic shop");
+        buildingPart = getBuildingPart("magic shop");
+        if (buildingPart) {
+          largeBuildingImage = `/src/assets/cells/magic-store-${buildingPart}.png`;
+        }
+        break;
+      case "armory":
+        console.log("armory");
+        buildingPart = getBuildingPart("armory");
+        if (buildingPart) {
+          largeBuildingImage = `/src/assets/cells/armory-${buildingPart}.png`;
+        }
+        break;
+    }
 
     return (
-      <div className={getCellClassName(cell)}>
+      <div className={`${getCellClassName(cell)}`}>
         {character && (
           <div className="positioned-character">
-            <img 
+            <img
               src={`/src/assets/characters/${character.image}`}
               alt={character.name}
-              className={`character-image ${redChar ? 'red-team' : 'blue-team'}`}
+              className={`character-image ${character.team === "red" ? 'red-team' : 'blue-team'}`}
+            />
+          </div>
+        )}
+        {largeBuildingImage && (
+          <div className="positioned-object">
+            <img
+              src={largeBuildingImage}
+              className="object-image building-image"
             />
           </div>
         )}
@@ -216,25 +275,19 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
       </div>
       <div className="positioning-map">
         <div className="map-preview preview-advanced"
-             style={{
-               gridTemplateColumns: `repeat(${selectedMap.size[0]}, 1fr)`,
-               gridTemplateRows: `repeat(${selectedMap.size[1]}, 1fr)`
-             }}>
+          style={{
+            gridTemplateColumns: `repeat(${selectedMap.size[0]}, 1fr)`,
+            gridTemplateRows: `repeat(${selectedMap.size[1]}, 1fr)`
+          }}>
           {selectedMap.map.flat().map((cell, index) => {
             const rowIndex = Math.floor(index / selectedMap.size[0]);
             const colIndex = index % selectedMap.size[0];
-            const cellCoord = `${colIndex + 1}-${rowIndex + 1}`;
-            const redChar = localTeams.team1.find(ch => ch.position === cellCoord);
-            const blueChar = localTeams.team2.find(ch => ch.position === cellCoord);
-            
             return (
-              <div 
-                key={index} 
-                className={`cell-wrapper ${
-                  hoveredCell?.row === rowIndex && hoveredCell?.col === colIndex ? 'hovered' : ''
-                } ${
-                  selectedCellCoords?.row === rowIndex && selectedCellCoords?.col === colIndex ? 'selected' : ''
-                }`}
+              <div
+                key={index}
+                className={`cell-wrapper ${hoveredCell?.row === rowIndex && hoveredCell?.col === colIndex ? 'hovered' : ''
+                  } ${selectedCellCoords?.row === rowIndex && selectedCellCoords?.col === colIndex ? 'selected' : ''
+                  }`}
                 onClick={(e) => handleCellClick(rowIndex, colIndex, e)}
                 onMouseEnter={() => handleHoveredCell({ row: rowIndex, col: colIndex })}
                 onMouseLeave={() => handleUnhoveredCell()}
@@ -259,9 +312,8 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
           {localTeams.team1.map((ch, index) => (
             <div
               key={index}
-              className={`positioning-character ${
-                selectedForPosition?.character.name === ch.name ? 'selected' : ''
-              }`}
+              className={`positioning-character ${selectedForPosition?.character.name === ch.name ? 'selected' : ''
+                }`}
               onClick={() => handleCharacterSelect(ch, 1)}
             >
               <div className="char-info">
@@ -276,9 +328,8 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
           {localTeams.team2.map((ch, index) => (
             <div
               key={index}
-              className={`positioning-character ${
-                selectedForPosition?.character.name === ch.name ? 'selected' : ''
-              }`}
+              className={`positioning-character ${selectedForPosition?.character.name === ch.name ? 'selected' : ''
+                }`}
               onClick={() => handleCharacterSelect(ch, 2)}
             >
               <div className="char-info">
@@ -299,15 +350,15 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
         <img src="/src/assets/images/characterPosition.png" alt="map" />
       </div>
       <div className="positioning-overlay">
-      {renderMap()}
-      {renderTeamsList()}
+        {renderMap()}
+        {renderTeamsList()}
       </div>
-      <button 
-        className="confirm-positions-button" 
+      <button
+        className="confirm-positions-button"
         onClick={() => onPositioningComplete(localTeams)}
         disabled={localTeams.team1.some(ch => !ch.position) || localTeams.team2.some(ch => !ch.position)}
       >
-        {localTeams.team1.some(ch => !ch.position) || localTeams.team2.some(ch => !ch.position) 
+        {localTeams.team1.some(ch => !ch.position) || localTeams.team2.some(ch => !ch.position)
           ? 'Разместите всех персонажей'
           : 'Начать игру!'
         }
