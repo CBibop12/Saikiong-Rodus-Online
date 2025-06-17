@@ -68,7 +68,7 @@ const PauseModal = ({ isPaused, matchState, onResume, handleDownloadCurrentMatch
                   <MessageCircleMore size={24} />
                   <span>Форум</span>
                 </button>
-                <button className="action-button" onClick={() => window.open('https://t.me/+KYaTJhK3xH9jY2M6', '_blank')}>
+                <button className="action-button" onClick={() => window.open('https://discord.gg/E2HKRxKc', '_blank')}>
                   <Users size={24} />
                   <span>Сообщество</span>
                 </button>

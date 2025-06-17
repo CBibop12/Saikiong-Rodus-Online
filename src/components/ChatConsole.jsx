@@ -9,7 +9,7 @@ import {
   ChevronRight,
   Pause,
 } from "lucide-react";
-import { items as availableItems } from "../data";
+import { items as availableItems, characters } from "../data";
 import { abilities as abilitiesList } from "../abilities";
 import "../styles/chatConsole.css";
 import "../styles/mapSelection.css";
@@ -29,50 +29,25 @@ import GameHeader from "./components/GameHeader";
 import ControlButton from "./components/ControlButton";
 import BaseInfo from "./components/BaseInfo";
 import Finale from "./components/FinaleWindow";
-import { generateId, removeEffect } from "../effects";
+import { removeEffect } from "../effects";
+import { generateId } from "./scripts/tools/simplifierStore";
 import { startingWalls } from "./scripts/building";
 import ShopDistribution from "./components/ShopDistribution";
+import { findCharacter, findCharacterByPosition } from "./scripts/tools/characterStore";
+import { allCellType, calculateCellsZone, cellHasType, initialOfCell, isNearType, objectOnCell, splitCoord, stringFromCoord, calculateNearCells } from "./scripts/tools/mapStore";
+import { randomArrayElement } from "./scripts/tools/simplifierStore";
 /**
  * ВЫНОСИМ ВНЕ КОМПОНЕНТА, чтобы она не пересоздавалась на каждом рендере
  * и не вызывала повторный useEffect.
  */
-function getMapOverlaysFromObjects(matchState, selectedMapSize) {
-  if (!matchState || matchState.objectsOnMap.length == 0) return [];
-
-  const overlays = [];
-
-  // Пробегаемся по всем объектам на карте
-  matchState.objectsOnMap.forEach((obj) => {
-    if (obj.type === "zone") {
-      // Это «перманентная» зона, рисуем все клетки вокруг неё
-      const cellsInZone = calculateCellsForZone(
-        obj.coordinates,
-        obj.stats.rangeOfObject,
-        selectedMapSize
-      );
-
-      cellsInZone.forEach((coord) => {
-        overlays.push({
-          coord,
-          color: obj.stats.rangeColor || "#ff00ff",
-          zoneId: obj.id,
-        });
-      });
-    }
-    // Если есть другие объекты с зонами — аналогично
-  });
-
-  return overlays;
-}
 
 const RANGE_OF_THROWABLE_OBJECTS = 5;
 const RANGE_OF_BUILDING_OBJECTS = 1;
+const INVENTORY_BASE_LIMIT = 3;
 
 const ChatConsole = ({ teams, selectedMap }) => {
   // Состояния для ввода текста, подсказок и сообщений
-  const [inputValue, setInputValue] = useState("");
   const [selectedAction, setSelectedAction] = useState("Взаимодействие");
-  const [suggestions, setSuggestions] = useState([]);
 
   const storesCooldown = 6;
 
@@ -166,6 +141,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
             actions: 1,
             moves: 1,
           },
+          latestDeath: null,
           baseHP: 1500,
           gold: 0,
           characters: teams.team1.map(ch => ({
@@ -175,12 +151,14 @@ const ChatConsole = ({ teams, selectedMap }) => {
             armoryCooldown: 0,
             labCooldown: 0
           })),
+          inventory: [],
         },
         blue: {
           remain: {
             actions: 1,
             moves: 1,
           },
+          latestDeath: null,
           baseHP: 1500,
           gold: 0,
           characters: teams.team2.map(ch => ({
@@ -190,6 +168,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
             armoryCooldown: 0,
             labCooldown: 0
           })),
+          inventory: [],
         },
       },
       advancedSettings: {
@@ -390,8 +369,8 @@ const ChatConsole = ({ teams, selectedMap }) => {
     const effect = beamSelectionMode ? pendingBeamEffect : pendingZoneEffect;
     if (!effect) return false;
 
-    const [startCol, startRow] = effect.caster.position.split("-").map(Number);
-    const [pointX, pointY] = cell.split("-").map(Number);
+    const [startCol, startRow] = splitCoord(effect.caster.position);
+    const [pointX, pointY] = splitCoord(cell);
 
     if (effect.type === "Луч" && !beamFixed) {
       // Нельзя направлять луч в ту же клетку, что и персонаж
@@ -442,285 +421,31 @@ const ChatConsole = ({ teams, selectedMap }) => {
     return false;
   };
 
-  // Пример: когда игрок наводит мышку (handleCellMouseEnter) в режиме выбора,
-  // мы наполняем selectionOverlay.
-  const handleCellMouseEnter = (cellCoord) => {
-    if ((!zoneSelectionMode && !beamSelectionMode && !teleportationMode) || zoneFixed || beamFixed) {
-      setHoveredCell(cellCoord);
-
-      // Проверяем, есть ли персонажи на клетке
-      const redChar = matchState.teams.red.characters.find(
-        (ch) => ch.position === cellCoord && ch.currentHP > 0
-      );
-      const blueChar = matchState.teams.blue.characters.find(
-        (ch) => ch.position === cellCoord && ch.currentHP > 0
-      );
-
-      // Получаем информацию о клетке
-      const [col, row] = cellCoord.split("-").map(Number);
-      const cell = selectedMap.map[row - 1]?.[col - 1];
-
-      // Показываем координаты, если клетка пустая, стена или кусты
-      // или если на клетке нет персонажей
-      if (!redChar && !blueChar && (cell && (cell.initial === "empty" || cell.initial === "wall" || cell.initial === "bush"))) {
-        setShowCoordinates(true);
-      } else {
-        setShowCoordinates(false);
-        return;
-      }
-    }
-
-    if (teleportationMode && teleportationCells.includes(cellCoord)) {
-      setTeleportationDestination(cellCoord);
-      return; // прекращаем дальнейшую обработку клика
-    }
-
-    if ((pendingMode === "throw" || pendingMode === "putDown") && throwableCells.includes(cellCoord)) {
-      setThrowDestination(cellCoord);
-      return;
-    }
-
-    if (calculateCastingAllowance(cellCoord)) {
-      if (beamSelectionMode) {
-        if (pendingBeamEffect.type === "Луч с перемещением") {
-          const cells = calculateBeamCellsComb(
-            pendingBeamEffect.caster.position,
-            cellCoord,
-            selectedMap.size,
-            pendingBeamEffect.coordinates,
-            pendingBeamEffect.stats.beamWidth,
-            pendingBeamEffect.canGoThroughWalls || false
-          );
-          setBeamCells(cells);
-        } else if (pendingBeamEffect.type === "Луч") {
-          const cells = calculateBeamCells(
-            pendingBeamEffect.caster.position,
-            cellCoord,
-            selectedMap.size,
-            pendingBeamEffect.coordinates,
-            pendingBeamEffect.stats.beamWidth,
-            pendingBeamEffect.canGoThroughWalls || false
-          );
-          setBeamCells(cells);
-        }
-      } else if (zoneSelectionMode) {
-        const cells = calculateCellsForZone(
-          cellCoord,
-          pendingZoneEffect.stats.rangeOfObject,
-          selectedMap.size
-        );
-        setSelectionOverlay(cells);
-      }
-      else if (pointSelectionMode) {
-        setPointDestination(cellCoord);
-      }
-    }
-  };
-
-  // Функция для расчёта достижимых клеток для перемещения, используя алгоритм обхода (BFS)
-  const calculateReachableCells = (startCoord, movementRange, mapSize) => {
-    // Разбираем стартовую клетку в формате "col-row" (1-индекс)
-    const [startCol, startRow] = startCoord.split("-").map(Number);
-    const reachableTeleports = [] //{coordinates: "n-n", distanceLeft: n, affiliate: "red" | "blue"}
-    const cols = mapSize[0],
-      rows = mapSize[1];
-
-    // Инициализация матрицы затрат для каждой клетки
-    const costGrid = Array.from({ length: rows }, () =>
-      Array(cols).fill(Infinity)
-    );
-
-    // Функция для проверки, можно ли войти в клетку с заданными координатами (0-индекс)
-    const canEnter = (r, c) => {
-      if (r < 0 || r >= rows || c < 0 || c >= cols) return false;
-      const cell = selectedMap.map[r][c];
-      // Запрещённые типы клеток
-      if (
-        cell.initial === "red base" ||
-        cell.initial === "blue base" ||
-        cell.initial === "magic shop" ||
-        cell.initial === "laboratory" ||
-        cell.initial === "armory"
-      ) {
-        return false;
-      }
-      // Преобразование координат клетки в формат "col-row" (1-индекс)
-      const cellPos = `${c + 1}-${r + 1}`;
-      // Проверка наличия персонажа на клетке
-      let object = matchState.objectsOnMap.find((obj) => obj.position === cellPos)
-      if (
-        matchState.teams.red.characters.some((ch) => ch.position === cellPos) ||
-        matchState.teams.blue.characters.some((ch) => ch.position === cellPos) ||
-        object
-      ) {
-        return false;
-      }
-      return true;
-    };
-
-    // Очередь для обхода клеток (используется BFS)
-    const queue = [];
-    const startR = startRow - 1,
-      startC = startCol - 1;
-    costGrid[startR][startC] = 0;
-    queue.push({ row: startR, col: startC, cost: 0 });
-
-    // Возможные направления перемещения (вверх, вправо, вниз, влево)
-    const directions = [
-      { dr: -1, dc: 0 },
-      { dr: 0, dc: 1 },
-      { dr: 1, dc: 0 },
-      { dr: 0, dc: -1 },
-    ];
-
-    // Обход клеток с накоплением затрат
-    while (queue.length) {
-      const { row, col, cost } = queue.shift();
-      const cell = selectedMap.map[row][col];
-      // Если текущая стоимость достигла лимита перемещения, дальнейший обход прекращается
-      if (cost >= movementRange) continue;
-
-      if (cell.initial === "red portal" || cell.initial === "blue portal") {
-        let doesExist = reachableTeleports.find(tp => tp.affiliate === (cell.initial === "red portal" ? "red" : "blue") && tp.coordinates === `${col + 1}-${row + 1}`)
-        if (!doesExist) reachableTeleports.push({ affiliate: cell.initial === "red portal" ? "red" : "blue", coordinates: `${col + 1}-${row + 1}`, distanceLeft: movementRange - cost })
-      }
-      // Стоимость выхода из текущей клетки (учитываем тип клетки: bush – стоимость 2, иначе 1)
-      const exitCost = selectedMap.map[row][col].initial === "bush" ? 2 : 1;
-
-      // Проверяем соседние клетки
-      for (const { dr, dc } of directions) {
-        const newRow = row + dr;
-        const newCol = col + dc;
-
-        // Если клетку нельзя посетить, переходим к следующей
-        if (!canEnter(newRow, newCol)) continue;
-
-        const newCost = cost + exitCost;
-        if (newCost <= movementRange && newCost < costGrid[newRow][newCol]) {
-          costGrid[newRow][newCol] = newCost;
-          queue.push({ row: newRow, col: newCol, cost: newCost });
-        }
-      }
-    }
-
-    // Собираем координаты клеток, до которых можно добраться
-    const reachable = [];
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        if (costGrid[r][c] <= movementRange) {
-          // Преобразуем координаты в формат "col-row" (1-индекс)
-          reachable.push(`${c + 1}-${r + 1}`);
-        }
-      }
-    }
-
-    if (reachableTeleports.length > 0) {
-      for (let tp of reachableTeleports) {
-        let portalPair = []
-        let anotherPortal
-
-        if (tp.affiliate === "red") {
-          for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-              if (selectedMap.map[r][c].initial === "red portal" && `${c + 1}-${r + 1}` != tp.coordinates) {
-                portalPair.push({ coordinates: `${c + 1}-${r + 1}`, affiliate: "red", distanceLeft: tp.distanceLeft })
-              }
-            }
-          }
-          anotherPortal = portalPair.find(portal => portal.coordinates != tp.coordinates)
-        }
-        else {
-          for (let r = 0; r < rows; r++) {
-            for (let c = 0; c < cols; c++) {
-              if (selectedMap.map[r][c].initial === "blue portal" && `${c + 1}-${r + 1}` != tp.coordinates) {
-                portalPair.push({ coordinates: `${c + 1}-${r + 1}`, affiliate: "blue", distanceLeft: tp.distanceLeft })
-              }
-            }
-          }
-          anotherPortal = portalPair.find(portal => portal.coordinates != tp.coordinates)
-        }
-
-        const [startCol, startRow] = anotherPortal.coordinates.split("-").map(Number);
-        const queue = [];
-        const startR = startRow - 1,
-          startC = startCol - 1;
-        costGrid[startR][startC] = 0;
-        queue.push({ row: startR, col: startC, cost: 0 });
-
-        // Возможные направления перемещения (вверх, вправо, вниз, влево)
-        const directions = [
-          { dr: -1, dc: 0 },
-          { dr: 0, dc: 1 },
-          { dr: 1, dc: 0 },
-          { dr: 0, dc: -1 },
-        ];
-
-        // Обход клеток с накоплением затрат
-        while (queue.length) {
-          const { row, col, cost } = queue.shift();
-          const cell = selectedMap.map[row][col];
-          // Если текущая стоимость достигла лимита перемещения, дальнейший обход прекращается
-          if (cost >= anotherPortal.distanceLeft) continue;
-          // Стоимость выхода из текущей клетки (учитываем тип клетки: bush – стоимость 2, иначе 1)
-          const exitCost = selectedMap.map[row][col].initial === "bush" ? 2 : 1;
-
-          // Проверяем соседние клетки
-          for (const { dr, dc } of directions) {
-            const newRow = row + dr;
-            const newCol = col + dc;
-
-            // Если клетку нельзя посетить, переходим к следующей
-            if (!canEnter(newRow, newCol)) continue;
-
-            const newCost = cost + exitCost;
-            if (newCost <= anotherPortal.distanceLeft && newCost < costGrid[newRow][newCol]) {
-              costGrid[newRow][newCol] = newCost;
-              queue.push({ row: newRow, col: newCol, cost: newCost });
-            }
-          }
-        }
-
-        for (let r = 0; r < rows; r++) {
-          for (let c = 0; c < cols; c++) {
-            if (costGrid[r][c] <= anotherPortal.distanceLeft) {
-              // Преобразуем координаты в формат "col-row" (1-индекс)
-              if (!reachable.includes(`${c + 1}-${r + 1}`))
-                reachable.push(`${c + 1}-${r + 1}`);
-            }
-          }
-        }
-      }
-    }
-
-    return reachable;
-  };
-
   const isSelectedNearStore = (character) => {
     let storeType = null;
-    for (let coord of calculateNearCells(character.position)) {
-      let cell = selectedMap.map[coord.split("-")[1] - 1][coord.split("-")[0] - 1];
-      if (["laboratory", "armory", "magic shop"].includes(cell.initial)) {
-        storeType = cell.initial;
+    for (let coord of calculateNearCells(character.position, selectedMap)) {
+      if (cellHasType(["laboratory", "armory", "magic shop"], coord, selectedMap)) {
+        storeType = initialOfCell(coord, selectedMap);
         break;
       }
     }
     return storeType;
   }
 
+  const calculateReachableCells = (startCoord, range) => {
+    return calculateCellsZone(startCoord, range, matchState, selectedMap.size, selectedMap, ["red base", "blue base", "magic shop", "laboratory", "armory"], false, false, true);
+  }
+
   // Функция для расчёта клеток, которые можно атаковать, с учётом направления и типа местности
   const calculateAttackableCells = (startCoord, range, mapSize) => {
     // Разбор стартовой клетки в формате "col-row" (1-индекс)
-    const [startCol, startRow] = startCoord.split("-").map(Number);
+    const [startX, startY] = splitCoord(startCoord, 1);
     const cols = mapSize[0],
       rows = mapSize[1];
-    const startX = startCol - 1,
-      startY = startRow - 1;
 
-    // Получаем клетку, на которой находится персонаж
-    const startCell = selectedMap.map[startY][startX];
     // Если персонаж находится в "bush", дальность атаки уменьшается в 2 раза (округляем вверх)
     let effectiveRange = range;
-    if (startCell.initial === "bush") {
+    if (initialOfCell([startX, startY], selectedMap) === "bush") {
       effectiveRange = Math.ceil(range / 2);
     }
 
@@ -741,14 +466,10 @@ const ChatConsole = ({ teams, selectedMap }) => {
         const newX = startX + dx * step;
         const newY = startY + dy * step;
 
-        // Проверка выхода за границы карты
         if (newX < 0 || newX >= cols || newY < 0 || newY >= rows) break;
 
-        const cell = selectedMap.map[newY][newX];
-        // Преобразуем координаты в формат "col-row" (1-индекс)
-        const cellPos = `${newX + 1}-${newY + 1}`;
+        const cellPos = stringFromCoord([newX, newY], 1);
 
-        // Проверка, находится ли на клетке персонаж
         const hasCharacter =
           matchState.teams.red.characters.some(
             (ch) => ch.position === cellPos
@@ -756,13 +477,11 @@ const ChatConsole = ({ teams, selectedMap }) => {
           matchState.teams.blue.characters.some(
             (ch) => ch.position === cellPos
           );
-        let object = matchState.objectsOnMap.find((obj) => obj.position === cellPos)
-        // Если клетка имеет тип "empty", "bush" или "healing zone", атака продолжается дальше
+        let object = objectOnCell(cellPos, matchState)
         if (!object) {
           attackable.push(cellPos);
-          // Если на клетке есть персонаж, дальнейшее распространение линии атаки прекращается
           if (hasCharacter) break;
-          if (cell.initial === "red base" || cell.initial === "blue base") break;
+          if (cellHasType(["red base", "blue base"], [newX, newY], selectedMap)) break;
         } else {
           if (object.type === "building") {
             attackable.push(cellPos);
@@ -775,20 +494,16 @@ const ChatConsole = ({ teams, selectedMap }) => {
     return attackable;
   };
 
-  const calculateThrowableCells = (startCoord, range = 5, mapSize) => {
+  const calculateThrowableCells = (startCoord, range = 5, mapSize, mode = "throw") => {
     {
       // Разбор стартовой клетки в формате "col-row" (1-индекс)
-      const [startCol, startRow] = startCoord.split("-").map(Number);
+      const [startX, startY] = splitCoord(startCoord, 1);
       const cols = mapSize[0],
         rows = mapSize[1];
-      const startX = startCol - 1,
-        startY = startRow - 1;
 
-      // Получаем клетку, на которой находится персонаж
-      const startCell = selectedMap.map[startY][startX];
       // Если персонаж находится в "bush", дальность атаки уменьшается в 2 раза (округляем вверх)
       let effectiveRange = range;
-      if (startCell.initial === "bush") {
+      if (initialOfCell([startX, startY], selectedMap) === "bush") {
         effectiveRange = Math.ceil(range / 2);
       }
 
@@ -811,15 +526,22 @@ const ChatConsole = ({ teams, selectedMap }) => {
 
           // Проверка выхода за границы карты
           if (newX < 0 || newX >= cols || newY < 0 || newY >= rows) break;
-
-          const cell = selectedMap.map[newY][newX];
           // Преобразуем координаты в формат "col-row" (1-индекс)
           const cellPos = `${newX + 1}-${newY + 1}`;
 
-          let object = matchState.objectsOnMap.find((obj) => obj.position === cellPos)
+          let object = objectOnCell(cellPos, matchState)
+          let characterOnCell = findCharacterByPosition(cellPos, matchState)
 
-          if (!object) {
-            throwable.push(cellPos);
+          if (!object && !cellHasType(["laboratory", "armory", "magic shop"], [newX, newY], selectedMap)) {
+            if (mode === "throw") {
+              if (!characterOnCell && !cellHasType(["red base", "blue base"], [newX, newY], selectedMap)) {
+                throwable.push(cellPos)
+              }
+            }
+            else if (mode === "putDown") {
+              // выкладывать можно персонажу или базе но после этого дальше идти нельзя
+              throwable.push(cellPos)
+            }
           } else {
             break;
           }
@@ -831,7 +553,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
   }
 
   const calculateBuildingCells = (startCoord, character, mapSize) => {
-    const [startCol, startRow] = startCoord.split("-").map(Number);
+    const [startCol, startRow] = splitCoord(startCoord);
     let mapAffiliation = character.team === "red" && startCol < mapSize[0] / 2 || character.team === "blue" && startCol > mapSize[0] / 2;
     let calcMode = mapAffiliation ? "map" : "range";
 
@@ -841,43 +563,6 @@ const ChatConsole = ({ teams, selectedMap }) => {
       return calculateThrowableCells(startCoord, 1, mapSize);
     }
   }
-
-  const calculateNearCells = (startCoord) => {
-    // Разбор стартовой клетки в формате "col-row" (1-индекс)
-    const [startCol, startRow] = startCoord.split("-").map(Number);
-    const cols = selectedMap.size[0],
-      rows = selectedMap.size[1];
-    const startX = startCol - 1,
-      startY = startRow - 1;
-
-    // Массив для хранения координат атакуемых клеток в формате "col-row"
-    const nearCells = [];
-
-    // Определяем четыре направления атаки: вверх, вправо, вниз, влево
-    const directions = [
-      { dx: 0, dy: -1 },
-      { dx: 1, dy: 0 },
-      { dx: 0, dy: 1 },
-      { dx: -1, dy: 0 },
-    ];
-
-    // Для каждого направления идём клетками до предельного шага effectiveRange
-    for (const { dx, dy } of directions) {
-      for (let step = 1; step <= 1; step++) {
-        const newX = startX + dx * step;
-        const newY = startY + dy * step;
-
-        // Проверка выхода за границы карты
-        if (newX < 0 || newX >= cols || newY < 0 || newY >= rows) break;
-
-        // Преобразуем координаты в формат "col-row" (1-индекс)
-        const cellPos = `${newX + 1}-${newY + 1}`;
-        nearCells.push(cellPos);
-      }
-    }
-
-    return nearCells;
-  };
 
   // Функция обновления состояния партии и сохранения в localStorage
   const updateMatchState = (newState) => {
@@ -940,7 +625,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
     }
     if (pendingMode === "move") {
       setAttackableCells([]);
-      setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility, selectedMap.size));
+      setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility));
       setThrowableCells([]);
       setBuildingCells([]);
     }
@@ -1002,16 +687,14 @@ const ChatConsole = ({ teams, selectedMap }) => {
 
   // Рендер отдельной ячейки
   const renderCell = (cell, rowIndex, colIndex) => {
-    const cellCoord = `${colIndex + 1}-${rowIndex + 1}`;
-    const redChar = matchState.teams.red.characters.find(ch => ch.position === cellCoord);
-    const blueChar = matchState.teams.blue.characters.find(ch => ch.position === cellCoord);
-    const character = redChar || blueChar;
-    const object = matchState.objectsOnMap.find(obj => obj.position === cellCoord && obj.type === "item");
-    const building = matchState.objectsOnMap.find(obj => obj.position === cellCoord && obj.type === "building");
+    const cellCoord = stringFromCoord([colIndex, rowIndex]);
+    const character = findCharacterByPosition(cellCoord, matchState);
+    const object = objectOnCell(cellCoord, matchState, "item");
+    const building = objectOnCell(cellCoord, matchState, "building");
 
     // Определяем принадлежность храма
     let churchClass = '';
-    if (cell.initial === "red church" || cell.initial === "blue church") {
+    if (cellHasType(["red church", "blue church"], [colIndex, rowIndex], selectedMap)) {
       for (let church of matchState.churches) {
         if (church.coordinates === cellCoord) {
           churchClass = church.currentAffiliation === "red" ? 'red-church' : 'blue-church';
@@ -1074,7 +757,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
             <img
               src={`/src/assets/characters/${character.image}`}
               alt={character.name}
-              className={`character-image ${redChar ? 'red-team' : 'blue-team'}`}
+              className={`character-image ${character.team === "red" ? 'red-team' : 'blue-team'}`}
             />
           </div>
         )}
@@ -1105,199 +788,6 @@ const ChatConsole = ({ teams, selectedMap }) => {
         )}
       </div>
     );
-  };
-
-  // Функция обработки изменения ввода команды
-  const handleInputChange = (e) => {
-    const value = e.target.value;
-    setInputValue(value);
-    if (value === "") {
-      setSuggestions([]);
-      return;
-    }
-
-    // Определение типа действия по ключевым словам в команде
-    const lowerValue = value.toLowerCase();
-    if (value.includes("=")) {
-      setSelectedAction("Назначение");
-    } else if (lowerValue.includes("атакует")) {
-      setSelectedAction("Атака");
-    } else if (lowerValue.includes("перемещается")) {
-      setSelectedAction("Перемещение");
-    } else if (
-      lowerValue.includes("подбирает") ||
-      lowerValue.includes("скидывает")
-    ) {
-      setSelectedAction("Взаимодействие");
-    } else if (lowerValue.includes("использует")) {
-      // Если после "использует" не идёт шаблон способностей, то считается, что это использование предмета
-      if (!/использует\s+[123]-ю\s+способность/i.test(value)) {
-        setSelectedAction("Использование предмета");
-      } else {
-        setSelectedAction("Способность");
-      }
-    }
-
-    // Разбиваем исходный текст по последовательностям из двух и более пробелов (разделитель между именем персонажа и командой)
-    const parts = value.split(/\s\s+/);
-
-    // Если разделителя нет – пользователь вводит только имя персонажа
-    if (parts.length === 1) {
-      const query = parts[0].trim().toLowerCase();
-      const allCharacters = [
-        ...matchState.teams.red.characters,
-        ...matchState.teams.blue.characters,
-      ];
-      const suggestions = allCharacters
-        .filter((ch) => ch.name.toLowerCase().startsWith(query))
-        .map((ch) => ({
-          type: "character",
-          name: ch.name,
-          display: ch.name,
-          color: matchState.teams.red.characters.find(
-            (c) => c.name.toLowerCase() === ch.name.toLowerCase()
-          )
-            ? "#942b2b"
-            : "#1a5896",
-        }));
-      setSuggestions(suggestions);
-      return;
-    }
-
-    // Если имя персонажа введено и присутствует разделитель:
-    const charName = parts[0].trim();
-    const actionPart = parts[1] || "";
-
-    // Поиск персонажа по точному совпадению
-    const selectedChar = [
-      ...matchState.teams.red.characters,
-      ...matchState.teams.blue.characters,
-    ].find((ch) => ch.name.toLowerCase() === charName.toLowerCase());
-
-    if (!selectedChar) {
-      // Если персонаж не найден, предлагаем варианты по частичному совпадению
-      const allCharacters = [
-        ...matchState.teams.red.characters,
-        ...matchState.teams.blue.characters,
-      ];
-      const suggestions = allCharacters
-        .filter((ch) => ch.name.toLowerCase().includes(charName.toLowerCase()))
-        .map((ch) => ({
-          type: "character",
-          name: ch.name,
-          display: ch.name,
-          color: matchState.teams.red.characters.find(
-            (c) => c.name.toLowerCase() === ch.name.toLowerCase()
-          )
-            ? "#942b2b"
-            : "#1a5896",
-        }));
-      setSuggestions(suggestions);
-      return;
-    }
-
-    // Если имя найдено – переходим в режим выбора действия
-    let attackString = `атакует на ${selectedChar.stats.Урон} ${selectedChar.type == "Маг"
-      ? "маг.урона"
-      : selectedChar.type == "Меха"
-        ? "тех.урона"
-        : selectedChar.type == "Стрелок"
-          ? "тех.урона"
-          : "физ.урона"
-      }`;
-    const standardActions = [
-      attackString,
-      "использует",
-      "перемещается на",
-      "взаимодействует",
-      "покупает",
-      "подбирает",
-    ];
-    let suggestions = [];
-
-    // Если после двойного пробела ничего не введено, сразу отображаем все стандартные действия
-    if (actionPart.trim() === "") {
-      suggestions = standardActions.map((act) => ({
-        type: "action",
-        name: act,
-        display: act,
-        color: "#265726",
-      }));
-      setSuggestions(suggestions);
-      return;
-    }
-
-    // Если пользователь уже ввёл часть команды после двойного пробела
-    if (value.endsWith(" ")) {
-      const actionTokens = actionPart.trim().split(/\s+/);
-      const actionWord = actionTokens[0].toLowerCase();
-
-      if (actionWord === "покупает") {
-        // Предлагаем товары из доступных предметов
-        suggestions = availableItems.map((it) => ({
-          type: "item",
-          name: it.name,
-          display: it.name,
-          color: "#3e3e96",
-        }));
-      } else if (actionWord === "использует") {
-        // Предлагаем способности или предметы из инвентаря
-        let abilitySuggestions = [];
-        if (selectedChar.abilities && selectedChar.abilities.length > 0) {
-          if (selectedChar.type.toLowerCase() === "танк") {
-            abilitySuggestions = selectedChar.abilities
-              .slice(0, 2)
-              .map((ab, idx) => ({
-                type: "ability",
-                name: `Способность ${idx + 1}`,
-                display: `${idx + 1}-ю способность`,
-                color: "#ffa500",
-              }));
-          } else {
-            abilitySuggestions = selectedChar.abilities.map((ab, idx) => ({
-              type: "ability",
-              name: `Способность ${idx + 1}`,
-              display: `${idx + 1}-ю способность`,
-              color: "#ffa500",
-            }));
-          }
-        }
-        const inventorySuggestions = (selectedChar.inventory || []).map(
-          (item) => ({
-            type: "item",
-            name: item.name,
-            display: item.name,
-            color: "#3e3e96",
-          })
-        );
-        suggestions = [...abilitySuggestions, ...inventorySuggestions];
-      } else {
-        // Фильтруем стандартные действия по введённому фрагменту
-        suggestions = standardActions
-          .filter((act) => act.startsWith(actionWord))
-          .map((act) => ({
-            type: "action",
-            name: act,
-            display: act,
-            color: "#265726",
-          }));
-      }
-      setSuggestions(suggestions);
-      return;
-    } else {
-      // Если действие ещё не завершено пробелом, фильтруем стандартные действия по введённому фрагменту
-      const lowerFrag = actionPart.toLowerCase();
-      suggestions = standardActions
-        .filter((act) => act.startsWith(lowerFrag))
-        .map((act) => ({
-          type: "action",
-          name: act,
-          display: act,
-          color: "#265726",
-        }));
-      setSuggestions(suggestions);
-      return;
-    }
   };
 
   const setTeam1Gold = (gold) => {
@@ -1364,6 +854,49 @@ const ChatConsole = ({ teams, selectedMap }) => {
     setAttackableCells(calculateAttackableCells(selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size));
   };
 
+  const initializePlace = (character) => {
+    // добавить логику состояния выбора места для воскрешения
+    let allyBaseCells = allCellType(`${character.type} base`, selectedMap, "object", 1)
+    let allAvailableNeighbours = []
+    const directions = [
+      [-1, -1], [-1, 0], [-1, 1],
+      [0, -1], [0, 1],
+      [1, -1], [1, 0], [1, 1]
+    ];
+    for (let baseCell of allyBaseCells) {
+      for (const [dx, dy] of directions) {
+        const newCol = baseCell.x + dx - 1;
+        const newRow = baseCell.y + dy - 1;
+        if (newCol >= 0 && newCol < selectedMap.size[0] &&
+          newRow >= 0 && newRow < selectedMap.size[1]) {
+          if (initialOfCell([newCol, newRow], selectedMap) !== `${character.team} base` && !allAvailableNeighbours.includes({ x: newCol, y: newRow })) {
+            if (!objectOnCell([newCol, newRow], matchState, "object") && !findCharacterByPosition([newCol, newRow], matchState) && !findCharacterByPosition([newCol, newRow], matchState)) {
+              allAvailableNeighbours.push({ x: newCol, y: newRow })
+            }
+          }
+        }
+      }
+    }
+    let randomCellIndex = randomArrayElement(allAvailableNeighbours, "index")
+    if (allAvailableNeighbours.length > 0) {
+      return stringFromCoord(allAvailableNeighbours[randomCellIndex])
+    }
+    else {
+      return `${character.position}`
+    }
+  }
+
+  const reviveCharacter = (characterName) => {
+    let character = { ...findCharacter(characterName, matchState) }
+    let initialCharacter = characters.find((char) => char.name === characterName)
+    matchState.teams[character.team].characters.splice(matchState.teams[character.team].characters.findIndex(ch => ch.name === characterName), 1)
+    let newCharacter = JSON.parse(JSON.stringify({ ...initialCharacter, position: initializePlace(character), team: character.team, inventory: [], armoryCooldown: 0, labCooldown: 0 }))
+    matchState.teams[character.team].characters.push(newCharacter)
+    console.log(matchState.teams[character.team].characters.find(ch => ch.name === characterName));
+
+    updateMatchState()
+  }
+
   const handleAttackCharacter = (character) => {
     const results = attack({ caster: selectedCharacter }, "neutral", [character], selectedCharacter.currentDamage, selectedCharacter.advancedSettings.damageType);
     matchState.teams[selectedCharacter.team].remain.actions -= 1;
@@ -1374,6 +907,12 @@ const ChatConsole = ({ teams, selectedMap }) => {
     if (results[0].currentHP === 0) {
       console.log("Character killed", character);
       matchState.teams[selectedCharacter.team].gold += 500;
+      let reviveItem = matchState.teams[character.team].inventory.find((item) => item.name === "Зелье воскрешения")
+      if (reviveItem) {
+        reviveCharacter(character.name)
+        matchState.teams[character.team].inventory.splice(matchState.teams[character.team].inventory.indexOf(reviveItem), 1)
+      }
+      matchState.teams[selectedCharacter.team].latestDeath = character.name;
       selectedCharacter.effects.map((effect) => {
         if (effect.byKill) {
           effect.byKill(selectedCharacter, character)
@@ -1391,43 +930,68 @@ const ChatConsole = ({ teams, selectedMap }) => {
       addActionLog(`${selectedCharacter.name} не может купить предмет, так как уже израсходовал все свои действия`);
       return;
     }
-    executeCommand({
-      characterName: selectedCharacter.name,
-      commandType: "buy",
-      commandObject: {
-        item: item.name,
-      },
-    }, {
-      matchState,
-      updateMatchState,
-      addActionLog,
-      setTeam1Gold,
-      setTeam2Gold,
-      setZoneSelectionMode,
-      setPendingZoneEffect,
-      setBeamSelectionMode,
-      setPendingBeamEffect,
-      setHighlightedZone,
-      calculateBeamCells,
-      setBeamCells,
-      selectedMap,
-      turn: matchState.turn,
-      // Передача дополнительных функций для работы с эффектами и картой
-      setSelectionOverlay,
-      addObjectOnMap,
-      calculateBeamCellsComb,
-      calculateTeleportationCells,
-      setTeleportationMode,
-      setPendingTeleportation,
-      setTeleportationCells,
-      setPointSelectionMode,
-      setPendingPointEffect,
-      setPointCells,
-      calculatePointCells,
-      calculateThrowableCells,
-      setThrowableCells,
-      throwableCells,
-    });
+    if (item.name === "Зелье воскрешения") {
+      if (selectedCharacter.currentMana >= item.price) {
+        if (INVENTORY_BASE_LIMIT - matchState.teams[selectedCharacter.team].inventory.length >= 1) {
+          selectedCharacter.currentMana -= item.price
+          if (matchState.teams[selectedCharacter.team].latestDeath != null) {
+            let character = matchState.teams[teamTurn].characters.find(ch => ch.name === matchState.teams[teamTurn].latestDeath);
+            const initialCharacter = characters.find((char) => char.name === character.name)
+            character = JSON.parse(JSON.stringify(initialCharacter))
+            matchState.teams[teamTurn].latestDeath = null;
+            updateMatchState();
+          }
+          else {
+            matchState.teams[selectedCharacter.team].inventory.push({ ...itemData, id: generateId() })
+          }
+        }
+        else {
+          addActionLog("Инвентарь базы заполнен, предмет не удается разместить")
+        }
+      }
+      else {
+        addActionLog("У персонажа недостаточно маны для покупки этого предмета")
+      }
+    }
+    else {
+      executeCommand({
+        characterName: selectedCharacter.name,
+        commandType: "buy",
+        commandObject: {
+          item: item.name,
+        },
+      }, {
+        matchState,
+        updateMatchState,
+        addActionLog,
+        setTeam1Gold,
+        setTeam2Gold,
+        setZoneSelectionMode,
+        setPendingZoneEffect,
+        setBeamSelectionMode,
+        setPendingBeamEffect,
+        setHighlightedZone,
+        calculateBeamCells,
+        setBeamCells,
+        selectedMap,
+        turn: matchState.turn,
+        // Передача дополнительных функций для работы с эффектами и картой
+        setSelectionOverlay,
+        addObjectOnMap,
+        calculateBeamCellsComb,
+        calculateTeleportationCells,
+        setTeleportationMode,
+        setPendingTeleportation,
+        setTeleportationCells,
+        setPointSelectionMode,
+        setPendingPointEffect,
+        setPointCells,
+        calculatePointCells,
+        calculateThrowableCells,
+        setThrowableCells,
+        throwableCells,
+      });
+    }
     if (matchState.teams[selectedCharacter.team].remain.actions > 0) {
       matchState.teams[selectedCharacter.team].remain.actions -= 1;
     }
@@ -1602,6 +1166,27 @@ const ChatConsole = ({ teams, selectedMap }) => {
     }
   };
 
+
+
+
+
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  ////////////////////////////////////////////////////////////////
   // Обработка клика по иконке персонажа для вставки команды в поле ввода
   const handleCharacterIconCLick = (character) => {
     const coordinates = character.position;
@@ -1625,7 +1210,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         if (character.name === selectedCharacter.name) {
           if (matchState.teams[selectedCharacter.team].remain.moves > 0 && teamTurn === selectedCharacter.team) {
             setPendingMode("move");
-            setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility, selectedMap.size));
+            setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility));
           }
           else {
             setPendingMode(null)
@@ -1644,7 +1229,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
             setAttackableCells([])
             if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
               setPendingMode("move");
-              calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility, selectedMap.size)
+              setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility));
             }
           }
           updateMatchState()
@@ -1676,7 +1261,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         setClickedEffectOnPanel(null);
         checkForStore(character);
         setPendingMode("move");
-        setReachableCells(calculateReachableCells(character.position, character.currentAgility, selectedMap.size));
+        setReachableCells(calculateReachableCells(character.position, character.currentAgility));
       }
       else if (teamTurn != character.team) {
         setPendingMode(null)
@@ -1686,6 +1271,9 @@ const ChatConsole = ({ teams, selectedMap }) => {
         setSelectedCharacter(character);
       }
     }
+    else if (pendingMode === "putDown") {
+      putDownObject(character.position)
+    }
     else {
       setShowCharacterInfoPanel(true);
       setSelectedCharacter(character);
@@ -1694,7 +1282,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         checkForStore(character)
         if (matchState.teams[character.team].remain.moves > 0) {
           setPendingMode("move");
-          setReachableCells(calculateReachableCells(character.position, character.currentAgility, selectedMap.size));
+          setReachableCells(calculateReachableCells(character.position, character.currentAgility));
         }
         else if (matchState.teams[character.team].remain.actions > 0) {
           setPendingMode("attack")
@@ -1876,7 +1464,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
           }
         }
         if (pendingMode === "putDown" && throwableCells.includes(coordinates)) {
-          putDownObject()
+          putDownObject(coordinates)
         }
         if (pendingMode === null) {
           if (matchState.objectsOnMap.find(obj => obj.position === coordinates)) {
@@ -2016,6 +1604,91 @@ const ChatConsole = ({ teams, selectedMap }) => {
     }
   };
 
+  // Пример: когда игрок наводит мышку (handleCellMouseEnter) в режиме выбора,
+  const handleCellMouseEnter = (cellCoord) => {
+    if ((!zoneSelectionMode && !beamSelectionMode && !teleportationMode) || zoneFixed || beamFixed) {
+      setHoveredCell(cellCoord);
+
+      let char = findCharacterByPosition(cellCoord, matchState)
+
+      const [col, row] = splitCoord(cellCoord, 1);
+      const cell = selectedMap.map[row][col];
+
+      if (!char && (cell && cellHasType(["empty", "bush", "healing zone"], [col, row], selectedMap)) && !objectOnCell(cellCoord, matchState)) {
+        setShowCoordinates(true);
+      } else {
+        setShowCoordinates(false);
+        return;
+      }
+    }
+
+    if (teleportationMode && teleportationCells.includes(cellCoord)) {
+      setTeleportationDestination(cellCoord);
+      return; // прекращаем дальнейшую обработку клика
+    }
+
+    if ((pendingMode === "throw" || pendingMode === "putDown") && throwableCells.includes(cellCoord)) {
+      setThrowDestination(cellCoord);
+      return;
+    }
+
+    if (calculateCastingAllowance(cellCoord)) {
+      if (beamSelectionMode) {
+        if (pendingBeamEffect.type === "Луч с перемещением") {
+          const cells = calculateBeamCellsComb(
+            pendingBeamEffect.caster.position,
+            cellCoord,
+            selectedMap.size,
+            pendingBeamEffect.coordinates,
+            pendingBeamEffect.stats.beamWidth,
+            pendingBeamEffect.canGoThroughWalls || false
+          );
+          setBeamCells(cells);
+        } else if (pendingBeamEffect.type === "Луч") {
+          const cells = calculateBeamCells(
+            pendingBeamEffect.caster.position,
+            cellCoord,
+            selectedMap.size,
+            pendingBeamEffect.coordinates,
+            pendingBeamEffect.stats.beamWidth,
+            pendingBeamEffect.canGoThroughWalls || false
+          );
+          setBeamCells(cells);
+        }
+      } else if (zoneSelectionMode) {
+        const cells = calculateCellsForZone(
+          cellCoord,
+          pendingZoneEffect.stats.rangeOfObject,
+          selectedMap.size
+        );
+        setSelectionOverlay(cells);
+      }
+      else if (pointSelectionMode) {
+        setPointDestination(cellCoord);
+      }
+    }
+  };
+  ////////////////////////////////////////////////////////////////
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
   const handleEndTurn = () => {
     const nextTeam = teamTurn === "red" ? "blue" : "red";
     const isNewRoundStarting = nextTeam === firstTeamToAct;
@@ -2086,20 +1759,8 @@ const ChatConsole = ({ teams, selectedMap }) => {
     updateMatchState();
   };
 
-  const findCharacter = (name) => {
-    const lowerName = name.toLowerCase();
-    return (
-      matchState.teams.red.characters.find(
-        (ch) => ch.name.toLowerCase() === lowerName
-      ) ||
-      matchState.teams.blue.characters.find(
-        (ch) => ch.name.toLowerCase() === lowerName
-      )
-    );
-  };
-
   const restartAbilityCooldowns = (characterName) => {
-    let char = findCharacter(characterName);
+    let char = findCharacter(characterName, matchState);
     char.abilities.forEach(ability => {
       ability.currentCooldown = ability.coolDown;
     });
@@ -2371,7 +2032,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
     if (!pendingPointEffect) return;
 
     pendingPointEffect.effect(charactersAtPoint);
-    matchState.teams[casterTeam].remain.actions -= 1;
+    matchState.teams[teamTurn].remain.actions -= 1;
     setPointSelectionMode(false);
     setPointCells([]);
     setPointDestination(null);
@@ -2831,16 +2492,6 @@ const ChatConsole = ({ teams, selectedMap }) => {
     a.click();
   };
 
-  // Добавляем стили для лучей
-  const styles = `
-    .beam-selection {
-      background-color: rgba(255, 255, 0, 0.3) !important;
-    }
-    .beam-selection:hover {
-      background-color: rgba(255, 255, 0, 0.5) !important;
-    }
-  `;
-
   // Функция для расчета доступных клеток для телепортации
   const calculateTeleportationCells = (startCoord, range, mapSize) => {
     const [startCol, startRow] = startCoord.split("-").map(Number);
@@ -2919,7 +2570,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
     restartAbilityCooldowns(pendingTeleportation.caster.name);
     if (matchState.teams[casterTeam].remain.moves > 0) {
       setPendingMode("move")
-      setReachableCells(calculateReachableCells(updatedCharacter.position, updatedCharacter.currentAgility, selectedMap.size))
+      setReachableCells(calculateReachableCells(updatedCharacter.position, updatedCharacter.currentAgility))
     }
     else {
       setReachableCells([])
@@ -2993,22 +2644,38 @@ const ChatConsole = ({ teams, selectedMap }) => {
     a.click();
   }
 
-  const putDownObject = () => {
+  const putDownObject = (coordinates) => {
+    const [col, row] = splitCoord(coordinates);
+    if (["red base", "blue base"].includes(selectedMap.map[row - 1][col - 1].initial)) {
+      if (selectedMap.map[row - 1][col - 1].initial === "red base" && INVENTORY_BASE_LIMIT - matchState.teams.red.inventory.length >= 1) {
+        matchState.teams.red.inventory.push({ ...pendingItem })
+      }
+      else if (selectedMap.map[row - 1][col - 1].initial === "blue base" && INVENTORY_BASE_LIMIT - matchState.teams.blue.inventory.length >= 1) {
+        matchState.teams.blue.inventory.push({ ...pendingItem })
+      }
+    }
+    else if (findCharacterByPosition(coordinates, matchState)) {
+      const character = findCharacterByPosition(coordinates, matchState);
+      if (character.team === selectedCharacter.team && character.inventory.length < character.inventoryLimit) {
+        character.inventory.push({ ...pendingItem })
+      }
+    }
+    else {
+      matchState.objectsOnMap.push({
+        ...pendingItem,
+        type: "item",
+        position: coordinates,
+        team: selectedCharacter.team
+      });
+    }
     selectedCharacter.inventory.splice(selectedCharacter.inventory.indexOf(pendingItem), 1);
-    console.log(pendingItem);
-    matchState.objectsOnMap.push({
-      ...pendingItem,
-      type: "item",
-      position: throwDestination,
-      team: selectedCharacter.team
-    });
     updateMatchState();
     setPendingItem(null);
     setItemHelperInfo(null)
     setThrowableCells([]);
     if (matchState.teams[teamTurn].remain.moves > 0) {
       setPendingMode("move")
-      setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility, selectedMap.size));
+      setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility));
     }
     else {
       setPendingMode(null)
@@ -3063,13 +2730,27 @@ const ChatConsole = ({ teams, selectedMap }) => {
     const totalDistributed = Object.values(manaDistribution).reduce((sum, mana) => sum + mana, 0);
     if (totalDistributed === selectedItem.price) {
       setShowManaDistribution(false);
-      setShowRecipientSelection(true);
+      if (selectedItem.name !== "Зелье воскрешения") {
+        setShowRecipientSelection(true);
+      }
+      else {
+        if (matchState.teams[teamTurn].latestDeath !== null) {
+          const character = matchState.teams[teamTurn].characters.find(ch => ch.name === matchState.teams[teamTurn].latestDeath);
+          character.currentHP = character.baseHP;
+          character.currentMana = character.baseMana;
+          matchState.teams[teamTurn].latestDeath = null;
+          updateMatchState();
+        }
+        else {
+          matchState.teams[teamTurn].inventory.push(selectedItem);
+          updateMatchState();
+        }
+        handleFinalizePurchase();
+      }
     }
   };
 
   const handleFinalizePurchase = () => {
-    if (!selectedRecipient) return;
-
     // Обновляем ману у персонажей
     Object.entries(manaDistribution).forEach(([name, mana]) => {
       if (mana > 0) {
@@ -3082,13 +2763,13 @@ const ChatConsole = ({ teams, selectedMap }) => {
     });
 
     // Добавляем предмет получателю
-    if (selectedItem.type === "wearable") {
+    if (selectedRecipient && selectedItem.type === "wearable") {
       selectedRecipient.wearableItems = selectedRecipient.wearableItems || [];
       selectedRecipient.wearableItems.push(selectedItem);
       if (selectedItem.onWear) {
         selectedItem.onWear(selectedRecipient);
       }
-    } else {
+    } else if (selectedRecipient && selectedItem.name !== "Зелье воскрешения") {
       selectedRecipient.inventory.push(selectedItem);
     }
 
@@ -3158,6 +2839,18 @@ const ChatConsole = ({ teams, selectedMap }) => {
     }
   }
 
+  const handleTakeObjectFromBase = (item) => {
+    selectedCharacter.inventory.push(item);
+    matchState.teams[selectedCharacter.team].inventory.splice(matchState.teams[selectedCharacter.team].inventory.indexOf(item), 1);
+    matchState.teams[selectedCharacter.team].remain.actions -= 1;
+    if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
+      setPendingMode("move");
+    } else {
+      setPendingMode(null)
+    }
+    updateMatchState();
+  }
+
   return (
     <div className={`game-console ${getMapName()}`}>
       {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn} handleCloseFinale={handleCloseFinale} handleDownloadStats={handleDownloadStats} />}
@@ -3177,13 +2870,13 @@ const ChatConsole = ({ teams, selectedMap }) => {
         selectedRecipient={selectedRecipient}
         setSelectedRecipient={setSelectedRecipient}
       />
-        <PauseModal
-          isPaused={isPaused}
-          matchState={matchState}
-          onResume={handleResume}
-          handleDownloadCurrentMatch={handleDownloadCurrentMatch}
-          handleDownloadAllMatches={handleDownloadAllMatches}
-        />
+      <PauseModal
+        isPaused={isPaused}
+        matchState={matchState}
+        onResume={handleResume}
+        handleDownloadCurrentMatch={handleDownloadCurrentMatch}
+        handleDownloadAllMatches={handleDownloadAllMatches}
+      />
       <div className="game-console-overlay" style={{ backgroundColor: `${teamTurn === "red" ? "rgba(102, 24, 24, 0.4)" : "rgba(34, 34, 139, 0.3)"}` }}></div>
       {lastNotification && (
         <Notification
@@ -3210,21 +2903,12 @@ const ChatConsole = ({ teams, selectedMap }) => {
         gameTime={matchState.gameTime}    // меняется только при паузе
         onSelectCharacter={handleSelectCharacter}
       />
-      <BaseInfo inventory={matchState.teams.red.inventory} gold={matchState.teams.red.gold} team="red" remain={matchState.teams.red.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} />
-      <BaseInfo inventory={matchState.teams.blue.inventory} gold={matchState.teams.blue.gold} team="blue" remain={matchState.teams.blue.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} />
+      <BaseInfo inventory={matchState.teams.red.inventory} gold={matchState.teams.red.gold} team="red" remain={matchState.teams.red.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} setItemHelperInfo={setItemHelperInfo} selectedCharacter={selectedCharacter} />
+      <BaseInfo inventory={matchState.teams.blue.inventory} gold={matchState.teams.blue.gold} team="blue" remain={matchState.teams.blue.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} setItemHelperInfo={setItemHelperInfo} selectedCharacter={selectedCharacter} />
       <ControlButton round={matchState.turn} handleEndRound={handleEndTurn} handlePause={handlePause} />
 
       <div className="game-container">
         {renderGameMap()}
-        <ContextMenu
-          contextMenu={contextMenu}
-          setContextMenu={setContextMenu}
-          setInputValue={setInputValue}
-          inputValue={inputValue}
-          handleInputChange={handleInputChange}
-          updateMatchState={updateMatchState}
-          matchState={matchState}
-        />
         {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn} />}
         {cellEffectsInfo && (
           <div className="cell-effects-tooltip">
@@ -3554,7 +3238,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
                 onClick={() => {
                   if (matchState.teams[teamTurn].remain.moves > 0) {
                     setPendingMode("move");
-                    setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility, selectedMap.size));
+                    setReachableCells(calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility));
                   }
                   else {
                     setPendingMode(null)
@@ -3650,7 +3334,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
             <p className="tooltip-description">{itemHelperInfo.description}</p>
             {itemHelperInfo.owner.team === teamTurn && (
               <>
-                {!itemHelperInfo.throwable &&
+                {!itemHelperInfo.throwable && selectedCharacter && selectedCharacter.inventory.find(item => item.id === itemHelperInfo.id) &&
                   <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
                     itemHelperInfo.effect(selectedCharacter)
                     if (itemHelperInfo.isSingleUse) {
@@ -3671,7 +3355,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
                   }}>
                     Применить (действие)
                   </button>}
-                {itemHelperInfo.throwable &&
+                {itemHelperInfo.throwable && selectedCharacter && selectedCharacter.inventory.find(item => item.id === itemHelperInfo.id) &&
                   <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
                     setPendingMode("throw");
                     setPendingItem({ ...itemHelperInfo })
@@ -3679,7 +3363,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
                   }}>
                     Бросить (действие)
                   </button>}
-                {itemHelperInfo.type === "building" &&
+                {itemHelperInfo.type === "building" && selectedCharacter && selectedCharacter.inventory.find(item => item.id === itemHelperInfo.id) &&
                   <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
                     setPendingItem({ ...itemHelperInfo })
                     chooseBuildingPosition(itemHelperInfo)
@@ -3687,13 +3371,22 @@ const ChatConsole = ({ teams, selectedMap }) => {
                     Построить ({itemHelperInfo.name === "Стена (х3)" && "одну или все"})
                   </button>
                 }
+                {selectedCharacter && selectedCharacter.inventory.find(item => item.id === itemHelperInfo.id) &&
                 <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
                   setPendingMode("putDown");
                   setPendingItem({ ...itemHelperInfo })
-                  setThrowableCells(calculateThrowableCells(selectedCharacter.position, 1, selectedMap.size));
+                  setThrowableCells(calculateThrowableCells(selectedCharacter.position, 1, selectedMap.size, "putDown"));
                 }}>
                   Выложить (действие)
                 </button>
+                }
+                {selectedCharacter && isNearType(selectedCharacter.position, selectedMap, `${selectedCharacter.team} base`) && !selectedCharacter.inventory.find(item => item.id === itemHelperInfo.id) &&
+                <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0 || selectedCharacter.inventory.length === selectedCharacter.inventoryLimit} onClick={() => {
+                  handleTakeObjectFromBase(itemHelperInfo)
+                }}>
+                  Забрать из базы (действие)
+                </button>
+                }
               </>
             )}
             <button className="tooltip-button" onClick={() => setItemHelperInfo(null)}>
