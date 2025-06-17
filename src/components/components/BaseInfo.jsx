@@ -1,17 +1,23 @@
-import React from 'react';
+/* eslint-disable react/prop-types */
 import { Box } from 'lucide-react';
-const BaseInfo = ({ inventory, gold, team, remain, advancedSettings, teamTurn }) => {
+import { items } from '../../data';
+
+const BaseInfo = ({ inventory, gold, team, remain, advancedSettings, teamTurn, setItemHelperInfo, selectedCharacter }) => {
   return (
     <>
     <div className={`base-info ${team === "red" ? "left" : "right"}`}>
         <h3>{team === "red" ? "Красная" : "Синяя"} База</h3>
         <div className="base-info__items">
-        {[1, 2, 3].map((slot) => (
-                <div key={slot} className="base-info__item">
-                  {inventory?.[slot - 1] ? (
+        {Array.from({ length: 3 }).map((_, index) => (
+                <div key={index} className="base-info__item" onClick={() => {
+                  if (inventory?.[index] && selectedCharacter && selectedCharacter.team === team) {
+                    setItemHelperInfo(inventory[index]);
+                  }
+                }}>
+                  {inventory?.[index] ? (
                     <img 
-                      src={`/src/assets/items/${items.find(item => item.name === inventory[slot - 1].name)?.image || 'default.png'}`} 
-                      alt={inventory[slot - 1].name || 'Предмет'}
+                      src={`/src/assets/items/${items.find(item => item.name === inventory[index].name)?.image || 'default.png'}`} 
+                      alt={inventory[index].name || 'Предмет'}
                     />
                   ) : (
                     <Box className="base-info__item-empty" />

@@ -1,4 +1,5 @@
 import { attack } from "./components/scripts/attack";
+import { generateId } from "./components/scripts/tools/simplifierStore";
 // effects.js – конструкторы и хелперы для стат‑эффектов персонажей
 // Экспортируйте отсюда функции‑«пресеты» и универсальный addEffect, если понадобится.
 
@@ -6,10 +7,6 @@ import { attack } from "./components/scripts/attack";
  * Универсальный помощник: добавляет effectObj в character.effects.
  * Возвращает ссылку на сам effectObj (можно пригодится).
  */
-
-export function generateId() {
-  return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-}
 
 export function addEffect(character, effectObj) {
     if (!character.effects) character.effects = [];
