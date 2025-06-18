@@ -22,7 +22,7 @@ const MainMenu = () => {
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragging(false);
-    
+
     const file = e.dataTransfer.files[0];
     if (!file) return;
     processFile(file);
@@ -33,7 +33,7 @@ const MainMenu = () => {
     if (file) {
       processArray(file)
     }
-  },[])
+  }, [])
 
   useEffect(() => {
     const intervalId = setInterval(changeAdvice, 15000);
@@ -42,10 +42,10 @@ const MainMenu = () => {
   }, [])
 
   const processArray = (file) => {
-        const inProcessRooms = file.filter(room => room.status === 'in_process');
-        setRooms(inProcessRooms);
-        setFileError('');
-        setHasFile(true);
+    const inProcessRooms = file.filter(room => room.status === 'in_process');
+    setRooms(inProcessRooms);
+    setFileError('');
+    setHasFile(true);
 
   };
 
@@ -98,19 +98,19 @@ const MainMenu = () => {
     <div className="landing-container">
       <div className="left-section">
         <div className="logo-container">
-          <img src="/src/assets/images/logo.png" alt="Logo" className="logo" />
-            <div className="advice-carousel" onClick={() => changeAdvice()}>
-              <h1>Добро пожаловать в игру</h1>
-              <div id="advice-text" className="advice-text">{advices[adviceElement]}</div>
-            </div>
+          <img src="/assets/images/logo.png" alt="Logo" className="logo" />
+          <div className="advice-carousel" onClick={() => changeAdvice()}>
+            <h1>Добро пожаловать в игру</h1>
+            <div id="advice-text" className="advice-text">{advices[adviceElement]}</div>
+          </div>
         </div>
-        <div 
+        <div
           className={`file-upload-zone ${isDragging ? 'dragging' : ''}`}
           onDrop={handleDrop}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
         >
-          <Upload size={48} className="upload-icon" color="#D4AF37"/>
+          <Upload size={48} className="upload-icon" color="#D4AF37" />
           <p>Перетащите JSON файл сюда или</p>
           <label htmlFor="jsonFile" className="file-upload-button">
             Выберите файл
@@ -128,24 +128,24 @@ const MainMenu = () => {
         {hasFile && (
           <div className="rooms-list">
             <h2>Доступные партии (in process):</h2>
-          {rooms.length > 0 ? (
-            <ul className="rooms-grid">
-              {rooms.map(room => (
-                <li key={room.id} className="room-card">
-                  <span className="room-number">Игра {room.id}</span>
-                  <button
-                    onClick={() => handleJoinRoom(room.id)}
-                    className="join-button"
-                  >
-                    Присоединиться
-                  </button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="no-rooms">Нет доступных партий. Загрузите JSON файл или создайте новую игру.</p>
-          )}
-        </div>
+            {rooms.length > 0 ? (
+              <ul className="rooms-grid">
+                {rooms.map(room => (
+                  <li key={room.id} className="room-card">
+                    <span className="room-number">Игра {room.id}</span>
+                    <button
+                      onClick={() => handleJoinRoom(room.id)}
+                      className="join-button"
+                    >
+                      Присоединиться
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="no-rooms">Нет доступных партий. Загрузите JSON файл или создайте новую игру.</p>
+            )}
+          </div>
         )}
       </div>
 
@@ -153,7 +153,7 @@ const MainMenu = () => {
         <button className="menu-button create-button" onClick={() => navigate('/new-game')}>
           Создать комнату
         </button>
-        
+
         <button className="menu-button rules-button" onClick={() => navigate('/rules')}>
           Ознакомиться с правилами
         </button>

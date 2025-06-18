@@ -721,31 +721,31 @@ const ChatConsole = ({ teams, selectedMap }) => {
       case "red base":
         buildingPart = getBuildingPart("red base");
         if (buildingPart) {
-          largeBuildingImage = `/src/assets/cells/red-base-${buildingPart}.png`;
+          largeBuildingImage = `/assets/cells/red-base-${buildingPart}.png`;
         }
         break;
       case "blue base":
         buildingPart = getBuildingPart("blue base");
         if (buildingPart) {
-          largeBuildingImage = `/src/assets/cells/blue-base-${buildingPart}.png`;
+          largeBuildingImage = `/assets/cells/blue-base-${buildingPart}.png`;
         }
         break;
       case "laboratory":
         buildingPart = getBuildingPart("laboratory");
         if (buildingPart) {
-          largeBuildingImage = `/src/assets/cells/lab-${buildingPart}.png`;
+          largeBuildingImage = `/assets/cells/lab-${buildingPart}.png`;
         }
         break;
       case "magic shop":
         buildingPart = getBuildingPart("magic shop");
         if (buildingPart) {
-          largeBuildingImage = `/src/assets/cells/magic-store-${buildingPart}.png`;
+          largeBuildingImage = `/assets/cells/magic-store-${buildingPart}.png`;
         }
         break;
       case "armory":
         buildingPart = getBuildingPart("armory");
         if (buildingPart) {
-          largeBuildingImage = `/src/assets/cells/armory-${buildingPart}.png`;
+          largeBuildingImage = `/assets/cells/armory-${buildingPart}.png`;
         }
         break;
     }
@@ -755,7 +755,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         {character && (
           <div className="positioned-character">
             <img
-              src={`/src/assets/characters/${character.image}`}
+              src={`/assets/characters/${character.image}`}
               alt={character.name}
               className={`character-image ${character.team === "red" ? 'red-team' : 'blue-team'}`}
             />
@@ -764,7 +764,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         {object && (
           <div className="positioned-object">
             <img
-              src={`/src/assets/items/${object.image}`}
+              src={`/assets/items/${object.image}`}
               alt={object.name}
               className={`object-image`}
             />
@@ -773,7 +773,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         {building &&
           <div className="positioned-object">
             <img
-              src={`/src/assets/cells/${building.image}`}
+              src={`/assets/cells/${building.image}`}
               className="object-image building-image"
             />
           </div>
@@ -2409,7 +2409,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
                 {renderCell(cell, rowIndex, colIndex)}
                 {isAttackAnimation && (
                   <div className="attack-animation">
-                    <img src={`/src/assets/gifs/${getAttackName(isAttackAnimation.damageType)}.gif`} />
+                    <img src={`/assets/gifs/${getAttackName(isAttackAnimation.damageType)}.gif`} />
                   </div>
                 )}
                 {redChar && renderCharacterIcon(redChar, "red")}
@@ -3416,7 +3416,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         {dynamicTooltip && (
           <div className="dynamic-tooltip">
             <div className="dynamic-tooltip-image-container">
-              <img src={`/src/assets/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
+              <img src={`/assets/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
             </div>
             <h5 className="dynamic-tooltip-title">{dynamicTooltip.title}</h5>
             {dynamicTooltip.parameters &&

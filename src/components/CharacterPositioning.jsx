@@ -198,35 +198,35 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
         console.log("red base");
         buildingPart = getBuildingPart("red base");
         if (buildingPart) {
-          largeBuildingImage = `/src/assets/cells/red-base-${buildingPart}.png`;
+          largeBuildingImage = `/assets/cells/red-base-${buildingPart}.png`;
         }
         break;
       case "blue base":
         console.log("blue base");
         buildingPart = getBuildingPart("blue base");
         if (buildingPart) {
-          largeBuildingImage = `/src/assets/cells/blue-base-${buildingPart}.png`;
+          largeBuildingImage = `/assets/cells/blue-base-${buildingPart}.png`;
         }
         break;
       case "laboratory":
         console.log("laboratory");
         buildingPart = getBuildingPart("laboratory");
         if (buildingPart) {
-          largeBuildingImage = `/src/assets/cells/lab-${buildingPart}.png`;
+          largeBuildingImage = `/assets/cells/lab-${buildingPart}.png`;
         }
         break;
       case "magic shop":
         console.log("magic shop");
         buildingPart = getBuildingPart("magic shop");
         if (buildingPart) {
-          largeBuildingImage = `/src/assets/cells/magic-store-${buildingPart}.png`;
+          largeBuildingImage = `/assets/cells/magic-store-${buildingPart}.png`;
         }
         break;
       case "armory":
         console.log("armory");
         buildingPart = getBuildingPart("armory");
         if (buildingPart) {
-          largeBuildingImage = `/src/assets/cells/armory-${buildingPart}.png`;
+          largeBuildingImage = `/assets/cells/armory-${buildingPart}.png`;
         }
         break;
     }
@@ -236,7 +236,7 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
         {character && (
           <div className="positioned-character">
             <img
-              src={`/src/assets/characters/${character.image}`}
+              src={`/assets/characters/${character.image}`}
               alt={character.name}
               className={`character-image ${character.team === "red" ? 'red-team' : 'blue-team'}`}
             />
@@ -347,7 +347,7 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
   return (
     <div className="positioning-page">
       <div className="positioning-image">
-        <img src="/src/assets/images/characterPosition.png" alt="map" />
+        <img src="/assets/images/characterPosition.png" alt="map" />
       </div>
       <div className="positioning-overlay">
         {renderMap()}

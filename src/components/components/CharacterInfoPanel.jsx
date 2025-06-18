@@ -114,7 +114,7 @@ const CharacterInfoPanel = ({ character, onClose, onAttack, onAbilityClick, onUn
                       </div>
                     </div>
                     {ability.image ? (
-                      <img src={`/src/assets/abilities/${ability.image}`} alt={ability.name} />
+                      <img src={`/assets/abilities/${ability.image}`} alt={ability.name} />
                     ) : (
                       <Swords />
                     )}
@@ -133,7 +133,7 @@ const CharacterInfoPanel = ({ character, onClose, onAttack, onAbilityClick, onUn
                 style={{ backgroundColor: typeColors[character.type] }}
               >
                 <img
-                  src={`/src/assets/characters/${character.image}`}
+                  src={`/assets/characters/${character.image}`}
                   alt={character.name}
                   style={{
                     transform: character.team === "blue" ? "scaleX(-1)" : "none",
@@ -160,7 +160,7 @@ const CharacterInfoPanel = ({ character, onClose, onAttack, onAbilityClick, onUn
                     <div key={slot} className="inventory-slot">
                       {character.inventory?.[slot - 1] ? (
                         <img
-                          src={`/src/assets/items/${items.find(item => item.name === character.inventory[slot - 1].name)?.image || 'default.png'}`}
+                          src={`/assets/items/${items.find(item => item.name === character.inventory[slot - 1].name)?.image || 'default.png'}`}
                           alt={character.inventory[slot - 1].name || 'Предмет'}
                           onClick={() => {
                             console.log(character.inventory?.[slot - 1], "is clicked");
@@ -246,7 +246,7 @@ const CharacterInfoPanel = ({ character, onClose, onAttack, onAbilityClick, onUn
                       </div>
                     </div>
                     {ability.image ? (
-                      <img src={`/src/assets/abilities/${ability.image}`} alt={ability.name} />
+                      <img src={`/assets/abilities/${ability.image}`} alt={ability.name} />
                     ) : (
                       <Swords />
                     )}
@@ -265,7 +265,7 @@ const CharacterInfoPanel = ({ character, onClose, onAttack, onAbilityClick, onUn
                 style={{ backgroundColor: typeColors[character.type] }}
               >
                 <img
-                  src={`/src/assets/characters/${character.image}`}
+                  src={`/assets/characters/${character.image}`}
                   alt={character.name}
                   style={{
                     transform: character.team === "blue" ? "scaleX(-1)" : "none",
@@ -292,7 +292,7 @@ const CharacterInfoPanel = ({ character, onClose, onAttack, onAbilityClick, onUn
                     <div key={index} className="inventory-slot">
                       {character.inventory?.[index] ? (
                         <img
-                          src={`/src/assets/items/${items.find(item => item.name === character.inventory[index].name)?.image || 'default.png'}`}
+                          src={`/assets/items/${items.find(item => item.name === character.inventory[index].name)?.image || 'default.png'}`}
                           alt={character.inventory[index].name || 'Предмет'}
                           onClick={() => {
                             console.log(character.inventory?.[index], "is clicked");

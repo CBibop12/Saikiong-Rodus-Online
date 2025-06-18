@@ -86,7 +86,7 @@ const Store = ({ matchState, character, storeType, onClose, onBuy, selectedMap, 
           >
             <div className="item-header">
               <img
-                src={`/src/assets/items/${item.image}`}
+                src={`/assets/items/${item.image}`}
                 alt={item.name}
                 className="item-image"
               />
