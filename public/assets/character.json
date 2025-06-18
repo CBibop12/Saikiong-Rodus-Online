@@ -1,0 +1,107 @@
+{
+    "name": "Саламандра",
+    "type": "Иной",
+    "stats": {
+      "HP": 300,
+      "Урон": 125,
+      "Мана": 3500,
+      "Ловкость": 8,
+      "Броня": 4,
+      "Дальность": 1
+    },
+    "passiveAbilities": [],
+    "functions": {
+      "movementAbility": true,
+      "actionAbility": true,
+      "abilityUsability": true,
+      "itemUsability": true
+    },
+    "advancedSettings": {
+      "appliedDamageMultiplier": 1,
+      "damageMultiplier": 1,
+      "vampirism": 0,
+      "basicDodge": 0,
+      "advancedDodge": 0,
+      "characterLayer": 1,
+      "damageType": "физический"
+    },
+    "currentHP": 300,
+    "currentMana": 3500,
+    "currentDamage": 125,
+    "currentAgility": 8,
+    "currentArmor": 4,
+    "currentRange": 1,
+    "position": null,
+    "inventory": [],
+    "effects": [],
+    "currentCooldowns": [0, 0, 0],
+    "abilities": [
+        {
+          "цена": "Цена 10 ходов.",
+          "урон": "50*4",
+          "тип": "область",
+          "размер": "5 клеток.",
+          "описание": "В радиусе 5 клеток от себя может выпустить 4 огненных выстрела каждый из которых наносит по 50 урона.",
+          "abilityObject": {
+            "name": "Огненные снаряды",
+            "coolDown": 10,
+            "type": "Заряды по области",
+            "putBy": "Саламандра",
+            "coordinates": 1,
+            "turnsRemain": 0,
+            "affiliate": "negative only",
+            "stats": {
+              "shotsAmount": 4,
+              "DamageType": "физический",
+              "attackRange": 0,
+              "rangeOfObject": 5,
+              "rangeShape": "romb",
+              "rangeColor": "#9d45f5"
+            },
+            "effectPerAttack": "function(attacks) { attacks.forEach(attack => { if (ch.Броня >= 1) { ch.Броня -= 1 } else { ch.currentHP -= 50 * attack.amount } }); }"
+        }
+        },
+        {
+          "цена": "Цена 9 ходов.",
+          "урон": "нет",
+          "тип": "точка",
+          "размер": "3 хода.",
+          "описание": "На 3 хода, может превратиться в настоящую саламандру. В этой форме его ловкость +2, урон: 0, а также появляется шанс обычного уворота: 50%",
+          "abilityObject": {
+            "name": "Превращение в саламандру",
+            "coolDown": 9,
+            "type": "Эффект на себя",
+            "putBy": "Саламандра",
+            "coordinates": 1,
+            "turnsRemain": 3,
+            "affiliate": "positive only",
+            "effect": "function(ch) { ch.stats.current.Ловкость += 2; ch.stats.current.Урон = 0; ch.stats.current.BasicDodge += 50; ch.effects.push({ name: 'Форма саламандры', turnsRemain: 3, consequence: function(ch) { ch.stats.current.Ловкость -= 2; ch.stats.current.Урон = ch.stats.Урон; ch.stats.BasicDodge -= 50 } }) }"
+        }
+        },
+        {
+          "цена": "8 ходов.",
+          "урон": 50,
+          "тип": "область",
+          "размер": "1 клетка, 3 хода",
+          "описание": "Нагревает область с радиусом 1 вокруг себя на 3 хода. Теперь каждый, кто войдёт в неё, получит урон: 50.",
+          "abilityObject": {
+            "name": "Раскаленная земля",
+            "coolDown": 8,
+            "type": "Размещение области с эффектом зоны",
+            "putBy": "Саламандра",
+            "coordinates": 1,
+            "turnsRemain": 3,
+            "affiliate": "negative only",
+            "stats": {
+              "DamageType": "физический",
+              "attackRange": 0,
+              "rangeOfObject": 1,
+              "rangeShape": "romb",
+              "rangeColor": "#9d45f5"
+            },
+            "zoneEffect": "function(affectedCharacters) { affectedCharacters.forEach(ch => { if (ch.Броня >= 1) { ch.Броня -= 1 } else { ch.currentHP -= 50 } }); }"
+        }
+        }
+      ],
+    "icon": "whatever"
+  }
