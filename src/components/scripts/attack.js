@@ -75,7 +75,7 @@ export function attack(attacker, affiliate, targets, damage, damageType) {
             }
             console.log(attacker);
             
-            attacker.caster.currentHP = Math.min(attacker.caster.stats.HP, attacker.caster.currentHP + attacker.caster.advancedSettings.vampirism)
+            attacker.caster.currentHP = Math.min(attacker.caster.stats.HP, attacker.caster.currentHP + attacker.caster.advancedSettings?.vampirism)
         }
 
         results.push({
