@@ -192,14 +192,14 @@
   } */
   
   .grid-cell.empty {
-    background-image: url("/src/assets/cells/empty.png");
+    background-image: url("/assets/cells/empty.png");
     background-size: cover;
     background-position: center;
     opacity: 0.8;
   }
 
   .grid-cell.wall {
-    background-image: url("/src/assets/cells/wall.png");
+    background-image: url("/assets/cells/wall.png");
     background-size: cover;
     background-position: center;
   }
@@ -225,38 +225,38 @@
   }
   
   .grid-cell.bush {
-    background-image: url("/src/assets/cells/bush.png");
+    background-image: url("/assets/cells/bush.png");
     background-size: cover;
     background-position: center;
   }
   
   .grid-cell.healing-zone {
-    background-image: url("/src/assets/cells/healingZone.png");
+    background-image: url("/assets/cells/healingZone.png");
     background-size: cover;
     background-position: center;
   }
 
   .red-portal-cover {
-    background-image: url("/src/assets/cells/redPortal.png");
+    background-image: url("/assets/cells/redPortal.png");
     background-size: cover;
     background-position: center;
   }
 
   .red-church-cover {
-    background-image: url("/src/assets/cells/redChurch.png");
+    background-image: url("/assets/cells/redChurch.png");
     background-size: cover;
     background-position: center;
     opacity: 0.8;
   }
   .blue-church-cover {
-    background-image: url("/src/assets/cells/blueChurch.png");
+    background-image: url("/assets/cells/blueChurch.png");
     background-size: cover;
     background-position: center;
     opacity: 0.8;
   }
 
   .blue-portal-cover {
-    background-image: url("/src/assets/cells/bluePortal.png");
+    background-image: url("/assets/cells/bluePortal.png");
     background-size: cover;
     background-position: center;
   }

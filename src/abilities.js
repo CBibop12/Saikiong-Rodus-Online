@@ -1,4 +1,4 @@
-// abilities.js (rev3)
+ // abilities.js (rev3)
 // Универсальные pointAttack / multiAttack работают без явного параметра «attacker».
 // Внутри effect / beamEffect / zoneEffect мы вызываем их так: pointAttack(this, target)
 // где `this` — сам объект способности. Все стат-поля берутся из него.

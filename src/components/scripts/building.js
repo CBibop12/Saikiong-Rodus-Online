@@ -1,4 +1,5 @@
-import { generateId } from "../../effects";
+import { generateId } from "./tools/simplifierStore";
+
 
 export function addBuilding(matchState, buildingObj) {
     matchState.objectsOnMap.push({...buildingObj, id: generateId()});

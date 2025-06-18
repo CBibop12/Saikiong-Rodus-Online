@@ -68,7 +68,18 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
     })
     .sort((a, b) => {
       if (sortKey === "name") return a.name.localeCompare(b.name);
-      return (b.stats?.[sortKey] || 0) - (a.stats?.[sortKey] || 0);
+      if (sortKey === "type") return a.type.localeCompare(b.type);
+
+      const valueA = a.stats[sortKey] || 0;
+      const valueB = b.stats[sortKey] || 0;
+
+      // Если значения числовые, сортируем по убыванию
+      if (typeof valueA === 'number' && typeof valueB === 'number') {
+        return valueB - valueA;
+      }
+
+      // Если значения строковые, сортируем по алфавиту
+      return String(valueA).localeCompare(String(valueB));
     });
 
   // Функция получения случайных персонажей из доступного пула
@@ -169,15 +180,15 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
     return (
       <div className="character-info-modal-overlay">
         <div className="character-info-modal">
-          <button 
+          <button
             className="close-button-modal"
             onClick={() => setShowCharacterInfo(false)}
           >
             <X size={24} />
           </button>
           <div className="character-info-header">
-            <img 
-              src={`/src/assets/characters/${selectedCharacter.image}`}
+            <img
+              src={`/assets/characters/${selectedCharacter.image}`}
               alt={selectedCharacter.name}
               className="character-info-image"
               style={{
@@ -205,7 +216,7 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
                   <div className="character-info-ability-image">
                     {
                       ability.image && (
-                        <img src={`/src/assets/abilities/${ability.image}`} alt={abilities[ability.key].name} />
+                        <img src={`/assets/abilities/${ability.image}`} alt={abilities[ability.key].name} />
                       )
                     }
                   </div>
@@ -237,8 +248,8 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
       }}
     >
       <div className="character-card-image">
-        <img 
-          src={`/src/assets/characters/${char.image}`}
+        <img
+          src={`/assets/characters/${char.image}`}
           alt={char.name}
         />
       </div>
@@ -252,7 +263,7 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
             </div>
           ))}
         </div>
-        <button 
+        <button
           className="info-button"
           onClick={(e) => {
             e.stopPropagation();
@@ -267,11 +278,11 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
 
   const renderCharacterPreview = (char) => (
     <div className="character-card"
-    style={{
-      backgroundColor: typeColors[char.type] || "#444",
-    }}>
+      style={{
+        backgroundColor: typeColors[char.type] || "#444",
+      }}>
       <div className="character-card-image">
-        <img src={`/src/assets/characters/${char.image}`} alt={char.name} />
+        <img src={`/assets/characters/${char.image}`} alt={char.name} />
       </div>
       <div className="character-card-info">
         <h3>{char.name}</h3>
@@ -287,12 +298,11 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
           {stage === "initial"
             ? "Выбор персонажей"
             : stage === "discard"
-            ? "Выберите персонажей для замены (0-5)"
-            : stage === "manual"
-            ? `Выбор персонажей для ${
-                currentTeam === 1 ? "первой" : "второй"
-              } команды`
-            : "Финальный состав"}
+              ? "Выберите персонажей для замены (0-5)"
+              : stage === "manual"
+                ? `Выбор персонажей для ${currentTeam === 1 ? "первой" : "второй"
+                } команды`
+                : "Финальный состав"}
         </h2>
 
         {stage === "initial" && (
@@ -331,7 +341,7 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
           <>
             <div className="discard-characters-grid">
               {(currentTeam === 1 ? team1Characters : team2Characters).map((char, index) => (
-                <div 
+                <div
                   key={index}
                   className={`discard-character-card ${selectedForDiscard.includes(index) ? 'selected' : ''}`}
                   onClick={() => handleCharacterDiscard(index)}
@@ -377,10 +387,12 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
               onChange={(e) => setSortKey(e.target.value)}
             >
               <option value="name">По имени</option>
-              <option value="health">По здоровью</option>
-              <option value="damage">По урону</option>
-              <option value="speed">По скорости</option>
-              <option value="range">По дальности</option>
+              <option value="HP">По здоровью</option>
+              <option value="Урон">По урону</option>
+              <option value="Ловкость">По скорости</option>
+              <option value="Дальность">По дальности</option>
+              <option value="Броня">По броне</option>
+              <option value="Мана">По мане</option>
             </select>
           </div>
         )}

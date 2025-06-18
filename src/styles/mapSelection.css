@@ -1,6 +1,6 @@
 /* MapSelection.css */
 .map-selection-container {
-  background: url('/src/assets/images/mapChoose.png') no-repeat center center fixed;
+  background: url('/assets/images/mapChoose.png') no-repeat center center fixed;
   background-size: cover;
   min-height: 100vh;
 }
@@ -105,7 +105,7 @@
   max-width: 1100px;
   gap: 2rem;
   width: 100%;
-  background-image: url('/src/assets/images/mapBackground.png');
+  background-image: url('/assets/images/mapBackground.png');
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -521,7 +521,12 @@
 }
 
 .grid-cell.red-church-powerpoint, .grid-cell.blue-church-powerpoint {
-  background-image: url('/src/assets/cells/churchCheckpoint.png');
+  background-image: url('/assets/cells/churchCheckpoint.png');
+  background-size: cover;
+  background-position: center;
+}
+.grid-cell.mob-spawnpoint {
+  background-image: url('/assets/cells/mobSpawnpoint.png');
   background-size: cover;
   background-position: center;
 }

@@ -1,4 +1,4 @@
-import { agilityBoost } from "./effects";
+import { addEffect, agilityBoost, removeEffect } from "./effects";
 
 export const characters = [
   // ──────────────── Саламандра ────────────────
@@ -39,6 +39,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -107,6 +108,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
 
@@ -172,6 +174,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
 
@@ -240,6 +243,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
 
@@ -308,6 +312,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
 
@@ -376,6 +381,7 @@ export const characters = [
     currentRange: 2,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
 
@@ -442,6 +448,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -509,6 +516,7 @@ export const characters = [
     currentRange: 3,
     position: null,
     inventory: [],
+    inventoryLimit: 1,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -575,6 +583,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -642,6 +651,7 @@ export const characters = [
     currentRange: 3,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -709,6 +719,7 @@ export const characters = [
     currentRange: 2,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     features:
@@ -780,6 +791,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -844,6 +856,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -912,6 +925,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -981,6 +995,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1047,6 +1062,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1112,6 +1128,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1179,6 +1196,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1245,6 +1263,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1310,6 +1329,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1375,6 +1395,7 @@ export const characters = [
     currentRange: 2,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1442,6 +1463,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1508,6 +1530,7 @@ export const characters = [
     currentRange: 4,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1575,6 +1598,7 @@ export const characters = [
     currentRange: 5,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1639,6 +1663,7 @@ export const characters = [
     currentRange: 4,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1703,6 +1728,7 @@ export const characters = [
     currentRange: 5,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1767,6 +1793,7 @@ export const characters = [
     currentRange: 5,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1831,6 +1858,7 @@ export const characters = [
     currentRange: 3,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1897,6 +1925,7 @@ export const characters = [
     currentRange: 3,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -1964,6 +1993,7 @@ export const characters = [
     currentRange: 5,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -2029,6 +2059,7 @@ export const characters = [
     currentRange: 4,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -2093,6 +2124,7 @@ export const characters = [
     currentRange: 7,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -2157,6 +2189,7 @@ export const characters = [
     currentRange: 7,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -2222,6 +2255,7 @@ export const characters = [
     currentRange: 7,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -2287,6 +2321,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -2352,6 +2387,7 @@ export const characters = [
     currentRange: 2,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -2417,6 +2453,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -2481,6 +2518,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -2545,6 +2583,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -2610,6 +2649,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0],
     abilities: [
@@ -2668,6 +2708,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0],
     abilities: [
@@ -2725,6 +2766,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0],
     abilities: [
@@ -2785,6 +2827,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0],
     abilities: [
@@ -2844,6 +2887,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     // если нужно 2 способности, только два currentCooldown
     currentCooldowns: [0, 0],
@@ -2903,6 +2947,7 @@ export const characters = [
     currentRange: 5,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -2967,6 +3012,7 @@ export const characters = [
     currentRange: 1,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -3031,6 +3077,7 @@ export const characters = [
     currentRange: 4,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -3096,6 +3143,7 @@ export const characters = [
     currentRange: 2,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     currentCooldowns: [0, 0, 0],
     abilities: [
@@ -3163,6 +3211,7 @@ export const characters = [
     currentRange: 3,
     position: null,
     inventory: [],
+    inventoryLimit: 3,
     effects: [],
     // Йети имеет 2 способности
     currentCooldowns: [0, 0],
@@ -3201,6 +3250,14 @@ export const items = [
       availability:
         "В инвентаре одного персонажа, может находиться не более одного Философского камня.",
     },
+    onWear: (character) => {
+      character.currentMana += 250;
+      character.currentHP += 100;
+    },
+    onRemove: (character) => {
+      character.currentMana -= 250;
+      character.currentHP -= 100;
+    },
   },
   {
     name: "Корона Ра",
@@ -3209,6 +3266,10 @@ export const items = [
     price: 500,
     currency: "gold",
     type: "item",
+    cooldown: {
+      initial: 10,
+      current: 0,
+    },
     description: {
       passiveAbility:
         "Атака (пассивная): Урон: 50 (физ.) Тип: область Радиус: 3 клетки.",
@@ -3232,6 +3293,18 @@ export const items = [
         "Цена: 10 ходов. Обнуляет цену всех активных способностей всех предметов в инвентаре (если такие имеются) кроме этой способности.",
       availability:
         "В инвентаре одного персонажа, может находиться не более одного",
+    },
+    onWear: (character) => {
+      for (const ability of character.abilities) {
+        ability.cooldown = Math.max(ability.cooldown - 5, 0);
+        ability.currentCooldown = Math.max(ability.currentCooldown - 5, 0);
+      }
+    },
+    onRemove: (character) => {
+      for (const ability of character.abilities) {
+        ability.cooldown = characters.find(ch => ch.name === character.name).abilities.find(ab => ab.key === ability.key).cooldown;
+        ability.currentCooldown = Math.min(ability.currentCooldown + 5, ability.cooldown);
+      }
     },
   },
   {
@@ -3278,6 +3351,12 @@ export const items = [
       availability:
         "В инвентаре одного персонажа, может находиться не более одних Сапог света.",
     },
+    onWear: (character) => {
+      character.currentAgility += 2;
+    },
+    onRemove: (character) => {
+      character.currentAgility -= 2;
+    },
   },
   {
     name: "Амулет равновесия",
@@ -3293,6 +3372,32 @@ export const items = [
       availability:
         "В инвентаре одного персонажа, может находиться сколько угодно Амулетов равновесия.",
     },
+    onWear: (character) => {
+      for (const ability of character.abilities) {
+        ability.cooldown = 0;
+        ability.currentCooldown = 0;
+      }
+      addEffect(character, {
+        name: "Амулет равновесия",
+        description: 'Превращает цену всех способностей в ману. Соотношение: 1 ход = 100 маны. Примечание: Распространяется только на способности использующие в качестве цены ходы. Примечание 2: На способности, с ценой "Пассивно" Амулет не распространяется. Примечание 3: Если, при надетом Амулете равновесия использовать хотя бы одну способность использующую ходы, при снятии, все способности уйдут в перезагрузку.',
+        effectType: "neutral",
+        canCancel: true,
+        typeOfEffect: "on ability use",
+        turnsRemain: Infinity,
+        effect: () => {
+
+        },
+        consequence: () => {
+        },
+      });
+    },
+    onRemove: (character) => {
+      removeEffect(character, "amuletRavnovesya");
+      for (const ability of character.abilities) {
+        ability.cooldown = characters.find(ch => ch.name === character.name).abilities.find(ab => ab.key === ability.key).cooldown;
+        ability.currentCooldown = ability.cooldown;
+      }
+    }
   },
   {
     name: "Рюкзак",
@@ -3308,6 +3413,12 @@ export const items = [
       availability:
         "В инвентаре одного персонажа, может находиться сколько угодно Рюкзаков. Также в инвентаре Рюкзака, может находиться сколько угодно Рюкзаков.",
     },
+    onWear: (character) => {
+      character.inventoryLimit += 4;
+    },
+    onRemove: (character) => {
+      character.inventoryLimit -= 4;
+    },
   },
   {
     name: "Перчатка повышенного урона",
@@ -3322,6 +3433,12 @@ export const items = [
         "Цена: 7 ходов Длительность: 3 хода Добавляет хозяину 75 урона (в сумме +100 урона) на 3 хода. При этом, со включённой активной способностью Перчатки повышенного урона, хозяин не может использовать способности (не распространяется на способности предметов).",
       availability:
         "В инвентаре одного персонажа, может находиться не более одной Перчатки повышенного урона.",
+    },
+    onWear: (character) => {
+      character.currentDamage += 25;
+    },
+    onRemove: (character) => {
+      character.currentDamage -= 25;
     },
   },
   {
@@ -3369,6 +3486,14 @@ export const items = [
       availability:
         "В инвентаре одного персонажа, может находиться не более одной Короны Лича.",
     },
+    onWear: (character) => {
+      character.currentMana += 1000;
+      character.stats.Mana += 1000;
+    },
+    onRemove: (character) => {
+      character.currentMana = Math.max(character.currentMana - 1000, 0);
+      character.stats.Mana -= 1000;
+    },
   },
   {
     name: "Кольцо ветров",
@@ -3384,9 +3509,15 @@ export const items = [
       availability:
         "В инвентаре одного персонажа, может находиться сколько угодно Колец ветров.",
     },
+    onWear: (character) => {
+      character.advancedSettings.advancedDodge += 10;
+    },
+    onRemove: (character) => {
+      character.advancedSettings.advancedDodge -= 10;
+    },
   },
   {
-    name: "Кристалл маны", 
+    name: "Кристалл маны",
     image: "manaCrystall.png",
     shopType: "Магический",
     price: 400,
@@ -3398,6 +3529,14 @@ export const items = [
         "Цена: 5 ходов Добавляет 400 к значению (но не к лимиту) маны хозяина.",
       availability:
         "В инвентаре одного персонажа, может находиться не более одного Кристалла маны.",
+    },
+    onWear: (character) => {
+      character.currentMana += 2000;
+      character.stats.Mana += 2000;
+    },
+    onRemove: (character) => {
+      character.currentMana = Math.max(character.currentMana - 2000, 0);
+      character.stats.Mana -= 2000;
     },
   },
   {
@@ -3415,6 +3554,12 @@ export const items = [
       availability:
         "В инвентаре одного персонажа, может находиться не более одного Эльфийского плаща.",
     },
+    onWear: (character) => {
+      character.advancedSettings.basicDodge += 25;
+    },
+    onRemove: (character) => {
+      character.advancedSettings.basicDodge -= 25;
+    },
   },
   {
     name: "Зелье восстановления",
@@ -3431,7 +3576,7 @@ export const items = [
         "В инвентаре одного персонажа, может находиться сколько угодно Зелий восстановления.",
     },
   },
-  { 
+  {
     name: "Свиток телепортации",
     image: "teleportScroll.png",
     shopType: "Магический",
@@ -3446,7 +3591,7 @@ export const items = [
         "В инвентаре одного персонажа, может находиться сколько угодно Свитков телепортации.",
     },
   },
-  { 
+  {
     name: "Катана",
     image: "katana.png",
     shopType: "Магический",
@@ -3459,6 +3604,16 @@ export const items = [
       activeAbility: null,
       availability:
         "В инвентаре одного персонажа, может находиться не более одной Катаны.",
+    },
+    onWear: (character) => {
+      if (character.type === "Иной" || character.type === "Рыцарь") {
+        character.currentDamage += 50;
+      }
+    },
+    onRemove: (character) => {
+      if (character.type === "Иной" || character.type === "Рыцарь") {
+        character.currentDamage -= 50;
+      }
     },
   },
   {
@@ -3490,6 +3645,16 @@ export const items = [
       availability:
         "В инвентаре одного персонажа, может находиться не более одного Телескопа.",
     },
+    onWear: (character) => {
+      if (character.type === "Стрелок" || character.type === "Меха") {
+        character.currentRange += 3;
+      }
+    },
+    onRemove: (character) => {
+      if (character.type === "Стрелок" || character.type === "Меха") {
+        character.currentRange -= 3;
+      }
+    },
   },
   {
     name: "Алый бокал",
@@ -3520,6 +3685,14 @@ export const items = [
         "Цена: 6 ходов (Активируется самостоятельно) Спасает хозяина от смертельного удара. Распространяется на любой вид наносимого урона, вплоть до урона от зелий. После спасения добавляет хозяину 25% от лимита НР. 25% высчитывается и от всех бонусов на лимит НР. Например: Кровавый маг: 500 НР [500HP + 150НР от плаща + 100НР от ф.камня = 750НР => (25%) => 188HP] После спасения, Сумеречный плащ уходит в перезагрузку.",
       availability:
         "В инвентаре одного персонажа, может находиться не более одного Сумеречного плаща.",
+    },
+    onWear: (character) => {
+      character.stats.HP += 150;
+      character.currentHP += 150;
+    },
+    onRemove: (character) => {
+      character.stats.HP = Math.max(character.stats.HP - 150, 0);
+      character.currentHP = Math.max(character.currentHP - 150, 0);
     },
   },
   {
@@ -3566,6 +3739,12 @@ export const items = [
       availability:
         "В инвентаре одного персонажа, может находиться не более одних Ртутных сапог.",
     },
+    onWear: (character) => {
+      character.currentAgility += 3;
+    },
+    onRemove: (character) => {
+      character.currentAgility -= 3;
+    },
   },
   {
     name: "Зелье здоровья",
@@ -3603,9 +3782,9 @@ export const items = [
     type: "item",
     stats: {
       range: 3,
-      zoneColor:"rgb(76, 248, 243)",
+      zoneColor: "rgb(76, 248, 243)",
       affiliation: "negative only",
-      effect: (affectedCharacters) => { 
+      effect: (affectedCharacters) => {
       },
     },
     description:
@@ -3635,7 +3814,7 @@ export const items = [
     name: "Зелье воскрешения",
     image: "potionOfRevival.png",
     shopType: "Лаборатория",
-    price: 7000,
+    price: 100,
     currency: "mana",
     type: "item",
     description:
@@ -3678,6 +3857,15 @@ export const items = [
     price: 1500,
     currency: "mana",
     type: "building",
+    stats: {
+      HP: 750,
+      Урон: 0,
+      Мана: 0,
+      Ловкость: 0,
+      Броня: 0,
+      Дальность: 0,
+    },
+    currentHP: 750,
     description:
       "НР: 750 После покупки добавляет в один слот инвентаря покупателя 3 стены. Примечание: При использовании на своей территории можно ставить на любую дальность, в пределах синего квадрата. При использовании на вражеской территории, можно ставить только на свою дальность. За раз можно поставить все стены. Примечание 2: Стена - нейтральная постройка.",
   },
@@ -3729,9 +3917,9 @@ export const items = [
     throwable: true,
     stats: {
       range: 3,
-      zoneColor:"rgb(76, 248, 243)",
+      zoneColor: "rgb(76, 248, 243)",
       affiliation: "negative only",
-      effect: (affectedCharacters) => { 
+      effect: (affectedCharacters) => {
       },
     },
     type: "item",
@@ -3745,7 +3933,7 @@ export const items = [
     price: 1000,
     currency: "mana",
     throwable: true,
-    type: "item", 
+    type: "item",
     description:
       "Дымовая шашка бросается на свою дальность. Но если Ваша дальность меньше 5, Вы можете бросить шашку на дальность больше или равна 5. Образует вокруг себя область с радиусом 4 клетки, в которой плотный дым отнимает половину от ловкости всех персонажей, делает дальность всех персонажей = 1, обычный промах = 50%. Действует дымовая шашка в течении 3-х ходов. Примечание: Промах бросается атакующим персонажем если хотя бы один из участников битвы находится в дыму. Примечание 2: Эффект дыма - негативный, но не может быть развеян способностью или зельями. Примечание 3: На дымовой шашке можно стоять.",
   },
