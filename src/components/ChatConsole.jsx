@@ -2288,7 +2288,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
       }}
     >
       <img
-        src={`src/assets/characters/${char.image}`}
+        src={`/assets/characters/${char.image}`}
         alt={char.name}
         style={{
           transform: team === "blue" ? "scaleX(-1)" : "none",

@@ -13,7 +13,7 @@ const Teams = ({
     // Проверяем наличие свойства image у персонажа
     if (character.image) {
       // Используем имя файла из свойства image
-      return `src/assets/characters/${character.image}`;
+      return `/assets/characters/${character.image}`;
     }
     // Возвращаем null, если изображение не указано
     return null;
