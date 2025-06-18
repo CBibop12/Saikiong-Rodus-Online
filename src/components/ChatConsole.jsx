@@ -36,6 +36,7 @@ import ShopDistribution from "./components/ShopDistribution";
 import { findCharacter, findCharacterByPosition } from "./scripts/tools/characterStore";
 import { allCellType, calculateCellsZone, cellHasType, initialOfCell, isNearType, objectOnCell, splitCoord, stringFromCoord, calculateNearCells } from "./scripts/tools/mapStore";
 import { randomArrayElement } from "./scripts/tools/simplifierStore";
+import { updateCreeps } from "./scripts/creaturesStore";
 /**
  * ВЫНОСИМ ВНЕ КОМПОНЕНТА, чтобы она не пересоздавалась на каждом рендере
  * и не вызывала повторный useEffect.
@@ -1169,22 +1170,22 @@ const ChatConsole = ({ teams, selectedMap }) => {
 
 
 
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
-  
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   ////////////////////////////////////////////////////////////////
   // Обработка клика по иконке персонажа для вставки команды в поле ввода
   const handleCharacterIconCLick = (character) => {
@@ -1371,6 +1372,11 @@ const ChatConsole = ({ teams, selectedMap }) => {
                   ]
                 })
               } else {
+                // Если объект имел награду, начисляем её команде атакующего
+                if (building.bounty) {
+                  matchState.teams[selectedCharacter.team].gold += building.bounty;
+                  updateMatchState();
+                }
                 setDynamicTooltip(null)
               }
               setPendingMode(matchState.teams[teamTurn].remain.moves > 0 ? "move" : "null")
@@ -1687,7 +1693,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
 
 
 
-  
+
   const handleEndTurn = () => {
     const nextTeam = teamTurn === "red" ? "blue" : "red";
     const isNewRoundStarting = nextTeam === firstTeamToAct;
@@ -1707,6 +1713,10 @@ const ChatConsole = ({ teams, selectedMap }) => {
       matchState.teams.blue.remain.moves = matchState.advancedSettings.movesPerTurn;
       matchState.teams.blue.remain.actions = matchState.advancedSettings.actionsPerTurn;
       matchState.turn += 1;
+      // ── Логика крипов ───────────────────────────────────────────
+      if (matchState.turn >= 5) {
+        updateCreeps(matchState, selectedMap, addActionLog);
+      }
       addActionLog(`--- Ход ${matchState.turn} завершён ---`);
       // Пример проверки всех объектов:
       const updatedObjects = matchState.objectsOnMap
@@ -3371,20 +3381,20 @@ const ChatConsole = ({ teams, selectedMap }) => {
                   </button>
                 }
                 {selectedCharacter && selectedCharacter.inventory.find(item => item.id === itemHelperInfo.id) &&
-                <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
-                  setPendingMode("putDown");
-                  setPendingItem({ ...itemHelperInfo })
-                  setThrowableCells(calculateThrowableCells(selectedCharacter.position, 1, selectedMap.size, "putDown"));
-                }}>
-                  Выложить (действие)
-                </button>
+                  <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
+                    setPendingMode("putDown");
+                    setPendingItem({ ...itemHelperInfo })
+                    setThrowableCells(calculateThrowableCells(selectedCharacter.position, 1, selectedMap.size, "putDown"));
+                  }}>
+                    Выложить (действие)
+                  </button>
                 }
                 {selectedCharacter && isNearType(selectedCharacter.position, selectedMap, `${selectedCharacter.team} base`) && !selectedCharacter.inventory.find(item => item.id === itemHelperInfo.id) &&
-                <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0 || selectedCharacter.inventory.length === selectedCharacter.inventoryLimit} onClick={() => {
-                  handleTakeObjectFromBase(itemHelperInfo)
-                }}>
-                  Забрать из базы (действие)
-                </button>
+                  <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0 || selectedCharacter.inventory.length === selectedCharacter.inventoryLimit} onClick={() => {
+                    handleTakeObjectFromBase(itemHelperInfo)
+                  }}>
+                    Забрать из базы (действие)
+                  </button>
                 }
               </>
             )}
@@ -3429,8 +3439,8 @@ const ChatConsole = ({ teams, selectedMap }) => {
             }
             <p className="dynamic-tooltip-description">{dynamicTooltip.description}</p>
             <div className="dynamic-tooltip-actions">
-              {selectedCharacter && dynamicTooltip.actions.length > 0 && dynamicTooltip.actions.map((action) => (
-                <button className="tooltip-button" onClick={action.onClick} disabled={matchState.teams[teamTurn].remain.actions === 0}>{action.name} (Действие)</button>
+              {selectedCharacter && dynamicTooltip.actions.length > 0 && dynamicTooltip.actions.map((action, idx) => (
+                <button key={idx} className="tooltip-button" onClick={action.onClick} disabled={matchState.teams[teamTurn].remain.actions === 0}>{action.name} (Действие)</button>
               ))}
               <button className="tooltip-button" onClick={() => setDynamicTooltip(null)}>Закрыть</button>
             </div>
