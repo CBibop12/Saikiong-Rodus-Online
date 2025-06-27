@@ -25,22 +25,52 @@ const CharacterPositioning = ({ teams, selectedMap, onPositioningComplete }) => 
   };
 
   const handleCellClickAllowance = (cellCoord) => {
+    // Если персонаж уже выбран для перемещения/установки – разрешаем клик без дополнительных проверок
     if (selectedForPosition) {
       return true;
     }
 
-    const [col, row] = cellCoord.split('-').map(Number);
+    // Приводим координаты к нулевой индексации
+    const [colOneBased, rowOneBased] = cellCoord.split('-').map(Number);
+    const col = colOneBased - 1;
+    const row = rowOneBased - 1;
+
+    // 1. Нельзя кликать на саму базу
+    if (cellHasType(["red base", "blue base"], [col, row], selectedMap)) {
+      return false;
+    }
+
+    // 2. Проверяем, есть ли на клетке уже размещённый персонаж
+    const isCellOccupied =
+      localTeams.team1.some((ch) => ch.position === cellCoord) ||
+      localTeams.team2.some((ch) => ch.position === cellCoord);
+
+    // Если клетка уже занята персонажем – не разрешаем действие
+    if (isCellOccupied) {
+      return false;
+    }
+
+    // 3. Проверяем, находится ли клетка СОСЕДНИМ образом с хотя бы одной клеткой базы
     const directions = [
-      [-1, -1], [-1, 0], [-1, 1],
-      [0, -1], [0, 1],
-      [1, -1], [1, 0], [1, 1]
+      [-1, -1],
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [0, 1],
+      [1, -1],
+      [1, 0],
+      [1, 1],
     ];
 
     for (const [dx, dy] of directions) {
-      const newCol = col + dx - 1;
-      const newRow = row + dy - 1;
-      if (newCol >= 0 && newCol < selectedMap.size[0] &&
-        newRow >= 0 && newRow < selectedMap.size[1]) {
+      const newCol = col + dx;
+      const newRow = row + dy;
+      if (
+        newCol >= 0 &&
+        newCol < selectedMap.size[0] &&
+        newRow >= 0 &&
+        newRow < selectedMap.size[1]
+      ) {
         if (cellHasType(["red base", "blue base"], [newCol, newRow], selectedMap)) {
           return true;
         }
