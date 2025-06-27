@@ -244,6 +244,11 @@ const ChatConsole = ({ teams, selectedMap }) => {
   const [manaDistribution, setManaDistribution] = useState({});
   const [selectedRecipient, setSelectedRecipient] = useState(null);
 
+  // ─────────────────────────────────────────────
+  //  Автозавершение хода            
+  const [autoEndTimer, setAutoEndTimer] = useState(null); // { id, start }
+  const [countdownProgress, setCountdownProgress] = useState(0); // 0-1
+
   // Эффект броска монетки в начале игры и инициализация объектов на карте
   useEffect(() => {
     if (!teamTurn) {
@@ -567,7 +572,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
 
   // Функция обновления состояния партии и сохранения в localStorage
   const updateMatchState = (newState) => {
-    const updated = newState ? { ...matchState, ...newState } : matchState;
+    const updated = newState ? { ...matchState, ...newState } : { ...matchState };
     // Проверяем если количество живых персонажей (с currentHP больше 0) в команде меньше чем было до обновления, то обновляем количество золота в команде
     // if (updated.teams.red.characters.filter(ch => ch.currentHP === 0).length > matchState.teams.red.characters.filter(ch => ch.currentHP === 0).length) {
     //   updated.teams.blue.gold += 500;
@@ -1443,6 +1448,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
         if (reachableCells.includes(coordinates) && pendingMode === "move" && matchState.teams[teamTurn].remain.moves > 0) {
           moveToCell(coordinates);
           matchState.teams[teamTurn].remain.moves -= 1;
+          updateMatchState();
           if (matchState.teams[teamTurn].remain.moves === 0) {
             setPendingMode(null);
             setReachableCells([]);
@@ -1464,6 +1470,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
               matchState.status = "blue_base_destroyed"
             }
             matchState.teams[teamTurn].remain.actions -= 1
+            updateMatchState();
             setPendingMode(null)
             setAttackableCells([])
           }
@@ -1766,6 +1773,14 @@ const ChatConsole = ({ teams, selectedMap }) => {
     localStorage.setItem("teamTurn", nextTeam);
     addActionLog(`🎲 Ход команды ${nextTeam === "red" ? "Красные" : "Синие"}`);
     updateMatchState();
+
+    // Очищаем авто-таймер, если он ещё активен
+    if (autoEndTimer) {
+      console.log("[AutoEndTimer] Очистка таймера внутри handleEndTurn");
+      clearTimeout(autoEndTimer.id);
+      setAutoEndTimer(null);
+      setCountdownProgress(0);
+    }
   };
 
   const restartAbilityCooldowns = (characterName) => {
@@ -2860,6 +2875,51 @@ const ChatConsole = ({ teams, selectedMap }) => {
     updateMatchState();
   }
 
+  // ─────────────────────────────────────────────
+  //  Следим за оставшимися действиями/ходами и запускаем автотаймер
+  useEffect(() => {
+    if (!matchState) return;
+
+    const remain = matchState.teams[teamTurn]?.remain;
+    if (!remain) {
+      return;
+    }
+
+
+    // Когда и перемещения, и действия закончены – запускаем таймер, если он ещё не запущен
+    if (remain.moves === 0 && remain.actions === 0) {
+      if (!autoEndTimer) {
+        const start = Date.now();
+        const id = setTimeout(() => {
+          handleEndTurn();
+        }, 5000);
+        setAutoEndTimer({ id, start });
+        setCountdownProgress(0);
+      }
+    } else {
+      // Если снова появились действия/ходы – убираем таймер
+      if (autoEndTimer) {
+        clearTimeout(autoEndTimer.id);
+        setAutoEndTimer(null);
+        setCountdownProgress(0);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchState, teamTurn, matchState?.teams?.[teamTurn]?.remain?.moves, matchState?.teams?.[teamTurn]?.remain?.actions]);
+
+  // Обновляем визуальный прогресс таймера
+  useEffect(() => {
+    if (!autoEndTimer) return;
+
+    const interval = setInterval(() => {
+      const elapsed = Date.now() - autoEndTimer.start;
+      const progress = Math.min(elapsed / 5000, 1);
+      setCountdownProgress(progress);
+    }, 100);
+
+    return () => clearInterval(interval);
+  }, [autoEndTimer]);
+
   return (
     <div className={`game-console ${getMapName()}`}>
       {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn} handleCloseFinale={handleCloseFinale} handleDownloadStats={handleDownloadStats} />}
@@ -2914,7 +2974,7 @@ const ChatConsole = ({ teams, selectedMap }) => {
       />
       <BaseInfo inventory={matchState.teams.red.inventory} gold={matchState.teams.red.gold} team="red" remain={matchState.teams.red.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} setItemHelperInfo={setItemHelperInfo} selectedCharacter={selectedCharacter} />
       <BaseInfo inventory={matchState.teams.blue.inventory} gold={matchState.teams.blue.gold} team="blue" remain={matchState.teams.blue.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} setItemHelperInfo={setItemHelperInfo} selectedCharacter={selectedCharacter} />
-      <ControlButton round={matchState.turn} handleEndRound={handleEndTurn} handlePause={handlePause} />
+      <ControlButton round={matchState.turn} handleEndRound={handleEndTurn} handlePause={handlePause} countdownProgress={countdownProgress} />
 
       <div className="game-container">
         {renderGameMap()}
