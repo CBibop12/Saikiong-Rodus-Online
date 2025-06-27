@@ -30,7 +30,7 @@ const GameHeader = ({
             </div>
             <div className="characters-array red">
                 {redChars.map((character, index) => (
-                    <div className="header-character" onClick={() => onSelectCharacter(character)} key={index}>
+                    <div className="header-character" onClick={() => { if (character.currentHP > 0) onSelectCharacter(character) }} key={index}>
                         <img
                             src={`/assets/characters/${character.image}`}
                             alt={character.name}
@@ -45,7 +45,7 @@ const GameHeader = ({
             <GameTimer gameTime={gameTime} />
             <div className="characters-array blue">
                 {blueChars.map((character, index) => (
-                    <div className="header-character" onClick={() => onSelectCharacter(character)} key={index}>
+                    <div className="header-character" onClick={() => { if (character.currentHP > 0) onSelectCharacter(character) }} key={index}>
                         <img src={`/assets/characters/${character.image}`} alt={character.name} style={{ transform: 'scaleX(-1)', backgroundColor: "rgba(32, 99, 119, 0.5)" }} />
                     </div>
                 ))}

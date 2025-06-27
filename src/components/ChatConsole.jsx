@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable no-unused-vars */
 /* eslint-disable react/prop-types */
 import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
@@ -905,6 +906,14 @@ const ChatConsole = ({ teams, selectedMap }) => {
   const handleAttackCharacter = (character) => {
     const results = attack({ caster: selectedCharacter }, "neutral", [character], selectedCharacter.currentDamage, selectedCharacter.advancedSettings.damageType);
     matchState.teams[selectedCharacter.team].remain.actions -= 1;
+    if (matchState.teams[selectedCharacter.team].remain.actions === 0) {
+      if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
+        setPendingMode("move");
+      }
+      else {
+        setPendingMode(null);
+      }
+    }
 
     if (results[0].hpDamage > 0) {
       selectedCharacter.currentHP += Math.max(selectedCharacter.currentHP, selectedCharacter.currentHP + selectedCharacter.advancedSettings.vampirism)
@@ -1348,7 +1357,15 @@ const ChatConsole = ({ teams, selectedMap }) => {
             if (matchState.objectsOnMap.find(object => object.position === coordinates && object.currentHP)) {
               let building = matchState.objectsOnMap.find(object => object.position === coordinates && object.currentHP)
               let result = attackBuilding(building, { damage: selectedCharacter.currentDamage, damageType: selectedCharacter.advancedSettings.damageType }, matchState)
-              matchState.teams[teamTurn].remain.actions--
+              matchState.teams[teamTurn].remain.actions -= 1;
+              if (matchState.teams[teamTurn].remain.actions === 0) {
+                if (matchState.teams[teamTurn].remain.moves > 0) {
+                  setPendingMode("move");
+                }
+                else {
+                  setPendingMode(null);
+                }
+              }
               let object = matchState.objectsOnMap.find(obj => obj.position === coordinates)
               if (!result.isDestroyed) {
                 setDynamicTooltip({
