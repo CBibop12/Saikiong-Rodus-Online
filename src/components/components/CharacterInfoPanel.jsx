@@ -4,7 +4,7 @@ import { Box, CircleX, Info, Sparkle, Sword, Swords } from 'lucide-react';
 import { abilities as abilitiesList } from '../../abilities.js';
 import { items } from '../../data';
 
-const CharacterInfoPanel = ({ character, onClose, onAttack, onAbilityClick, onUnselectAttack, pendingMode, onEffectClick, teamTurn, onItemClick }) => {
+const CharacterInfoPanel = ({ isMyTurn, character, onClose, onAttack, onAbilityClick, onUnselectAttack, pendingMode, onEffectClick, teamTurn, onItemClick }) => {
   if (!character) return null;
   const [attackMode, setAttackMode] = useState(false);
 
@@ -77,7 +77,7 @@ const CharacterInfoPanel = ({ character, onClose, onAttack, onAbilityClick, onUn
     }
   }
 
-  if (teamTurn === character.team) {
+  if (isMyTurn && teamTurn === character.team) {
     return (
       <div className="info-panel">
         <div className="character-info-panel-header">

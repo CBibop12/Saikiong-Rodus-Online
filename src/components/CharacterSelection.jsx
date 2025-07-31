@@ -292,7 +292,7 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
   );
 
   return (
-    <div className={`modal-overlay active`}>
+    <>
       <div className="character-distribution-modal">
         <h2 className="modal-title">
           {stage === "initial"
@@ -455,7 +455,7 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
         )}
       </div>
       <CharacterInfoModal />
-    </div>
+    </>
   );
 };
 
