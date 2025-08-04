@@ -1,4 +1,5 @@
 import { findCharacterByPosition } from "./characterStore";
+import { maps } from "../../../maps";
 
 export const normalizeCoordToArray = (coord) => {
     if (typeof coord === "string") {
@@ -11,6 +12,10 @@ export const normalizeCoordToArray = (coord) => {
         if ("x" in coord && "y" in coord) return [coord.x, coord.y];
     }
     return coord;
+}
+
+export const getMapObjectByName = (name) => {
+  return maps.find(m => m.name === name)
 }
 
 export const splitCoord = (coord, minus = 0) => {

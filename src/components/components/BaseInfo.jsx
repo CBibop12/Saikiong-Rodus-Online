@@ -2,11 +2,11 @@
 import { Box } from 'lucide-react';
 import { items } from '../../data';
 
-const BaseInfo = ({ inventory, gold, team, remain, advancedSettings, teamTurn, setItemHelperInfo, selectedCharacter }) => {
+const BaseInfo = ({ inventory, gold, team, player, remain, advancedSettings, teamTurn, setItemHelperInfo, selectedCharacter }) => {
   return (
     <>
       <div className={`base-info ${team === "red" ? "left" : "right"}`}>
-        <h3>{team === "red" ? "Красная" : "Синяя"} База</h3>
+        <h3>База {player}</h3>
         <div className="base-info__items">
           {Array.from({ length: 3 }).map((_, index) => (
             <div key={index} className="base-info__item" onClick={() => {

@@ -1,6 +1,6 @@
 import { Pause } from "lucide-react";
 //eslint-disable-next-line
-const ControlButton = ({ round, handleEndRound, handlePause, countdownProgress = 0 }) => {
+const ControlButton = ({ round, isItMyTurn, handleEndRound, handlePause, countdownProgress = 0 }) => {
   // Рассчитываем угол заливки для круговой диаграммы (0-360°)
   const angle = Math.min(countdownProgress * 360, 360);
 
@@ -29,15 +29,17 @@ const ControlButton = ({ round, handleEndRound, handlePause, countdownProgress =
           {Math.ceil(5 - countdownProgress * 5)}
         </div>
         )}
-      <h3>Ход {round}</h3>
+      <h3>Ход {round} ({isItMyTurn ? "Ваш ход" : "Ход противника"})</h3>
       </div>
       <div className="control-buttons">
         <div className="control-button" onClick={handlePause}>
           <Pause />
         </div>
-        <div className="end-round-button" onClick={handleEndRound}>
-          Завершить ход
-        </div>
+        {isItMyTurn && (
+          <div className="end-round-button" onClick={handleEndRound}>
+            Завершить ход
+          </div>
+        )}
       </div>
     </div>
   );
