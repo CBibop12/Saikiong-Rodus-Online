@@ -197,9 +197,10 @@ const updateCreepsAPI = async (roomCode) => {
   });
 };
 
-const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initialMatchState, teamTurn: initialTeamTurn, firstTeamToAct: initialFirstTeamToAct, messages: initialMessages, roomCode }) => {
+const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matchState: initialMatchState, teamTurn: initialTeamTurn, firstTeamToAct, messages: initialMessages, roomCode }) => {
   // Состояния для ввода текста, подсказок и сообщений
   const [selectedAction, setSelectedAction] = useState("Взаимодействие");
+  const [user, setUser] = useState(initialUser);
 
   // Локальная функция для проверки близости к базе команды
   const isNearTeamBase = (position, team) => {
@@ -228,9 +229,6 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
   const [showCoordinates, setShowCoordinates] = useState(false);
   // Состояние текущей команды (чей сейчас ход)
   const [teamTurn, setTeamTurn] = useState(initialTeamTurn);
-
-  // Состояние первой команды, определяемое монеткой
-  const [firstTeamToAct, setFirstTeamToAct] = useState(initialFirstTeamToAct);
 
   // Состояние логов сообщений
   const [messages, setMessages] = useState(initialMessages || []);
@@ -335,30 +333,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
   const [autoEndTimer, setAutoEndTimer] = useState(null); // { id, start }
   const [countdownProgress, setCountdownProgress] = useState(0); // 0-1
   const [isMyTurn, setIsMyTurn] = useState(false);
-  // Функция для применения diff к локальному состоянию
-  const applyDiffToState = (currentState, diff) => {
-    const result = JSON.parse(JSON.stringify(currentState)); // Глубокая копия
 
-    Object.keys(diff).forEach(path => {
-      const keys = path.split('.');
-      let current = result;
-
-      // Проходим по пути до предпоследнего ключа
-      for (let i = 0; i < keys.length - 1; i++) {
-        const key = keys[i];
-        if (current[key] === undefined) {
-          current[key] = {};
-        }
-        current = current[key];
-      }
-
-      // Устанавливаем значение
-      const lastKey = keys[keys.length - 1];
-      current[lastKey] = diff[path];
-    });
-
-    return result;
-  };
 
   // Эффект для синхронизации состояний с веб-сокетом
   useEffect(() => {
@@ -373,25 +348,11 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
   useEffect(() => {
     if (!socket) return;
 
-    const handleMatchStateDiff = (data) => {
-      console.log('Получен diff от сервера:', data);
 
-      setMatchState(currentState => {
-        if (!currentState) return currentState;
-
-        const updatedState = applyDiffToState(currentState, data.diff);
-        // Обновляем контрольную точку и UI
-        setMatchStateCheckpoint(deepClone(updatedState));
-        console.log('Состояние обновлено через diff:', updatedState);
-
-        return updatedState;
-      });
-    };
 
     const handleMatchStateFull = (data) => {
       console.log('Получено полное состояние от сервера:', data);
-      setMatchState(data.matchState);
-      setMatchStateCheckpoint(deepClone(data.matchState));
+      updateMatchStateLocally(data.matchState, 'full');
     };
 
     const handleUpdateConfirmed = (data) => {
@@ -404,14 +365,12 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     };
 
     // Подписываемся на события
-    socket.on('MATCH_STATE_DIFF', handleMatchStateDiff);
     socket.on('MATCH_STATE_FULL', handleMatchStateFull);
     socket.on('MATCH_STATE_UPDATE_CONFIRMED', handleUpdateConfirmed);
     socket.on('MATCH_STATE_UPDATE_ERROR', handleUpdateError);
 
     // Очищаем подписки при размонтировании
     return () => {
-      socket.off('MATCH_STATE_DIFF', handleMatchStateDiff);
       socket.off('MATCH_STATE_FULL', handleMatchStateFull);
       socket.off('MATCH_STATE_UPDATE_CONFIRMED', handleUpdateConfirmed);
       socket.off('MATCH_STATE_UPDATE_ERROR', handleUpdateError);
@@ -433,12 +392,6 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
       setTeamTurn(initialTeamTurn);
     }
   }, [initialTeamTurn]);
-
-  useEffect(() => {
-    if (initialFirstTeamToAct) {
-      setFirstTeamToAct(initialFirstTeamToAct);
-    }
-  }, [initialFirstTeamToAct]);
 
   useEffect(() => {
     if (initialMessages) {
@@ -512,11 +465,45 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     }
   }
 
+  const checkModePossibility = async () => {
+    if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
+      setPendingMode("move");
+      setReachableCells(await calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility));
+      setAttackableCells([]);
+    }
+    else if (matchState.teams[selectedCharacter.team].remain.actions > 0) {
+      setPendingMode("attack");
+      setAttackableCells(await calculateAttackableCells(selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size));
+      setReachableCells([]);
+    }
+    else {
+      setPendingMode(null);
+      setReachableCells([]);
+      setAttackableCells([]);
+    }
+  }
 
+  const checkModePossibilityForCharacter = async (character, state = matchState) => {
+    if (state.teams[character.team].remain.moves > 0) {
+      setPendingMode("move");
+      setReachableCells(await calculateReachableCells(character.position, character.currentAgility));
+      setAttackableCells([]);
+    }
+    else if (state.teams[character.team].remain.actions > 0) {
+      setPendingMode("attack");
+      setAttackableCells(await calculateAttackableCells(character.position, character.currentRange, selectedMap.size));
+      setReachableCells([]);
+    }
+    else {
+      setPendingMode(null);
+      setReachableCells([]);
+      setAttackableCells([]);
+    }
+  }
 
   const addObjectOnMap = (obj) => {
     const newObjects = [...matchState.objectsOnMap, obj];
-    updateMatchState({ objectsOnMap: newObjects });
+    updateMatchState({ objectsOnMap: newObjects }, 'partial');
   };
 
   // Функция для получения эффектов, которые накладываются на клетку с заданными координатами
@@ -610,54 +597,57 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     return await calculateCellsZone(startCoord, range, roomCode, ["red base", "blue base", "magic shop", "laboratory", "armory"], false, false, true);
   }
 
-  // Функция для расчёта клеток, которые можно атаковать, с учётом направления и типа местности
+  // Локальный расчёт клеток для атаки без обращения к API
   const calculateAttackableCells = async (startCoord, range, mapSize) => {
-    // Разбор стартовой клетки в формате "col-row" (1-индекс)
-    const [startX, startY] = await splitCoord(startCoord, 1);
-    const cols = mapSize[0],
-      rows = mapSize[1];
+    // Возвращает «четырёхлучевую» форму длиной `range`,
+    // прерываясь, если встречена стена (wall), база или объект/персонаж
 
-    // Если персонаж находится в "bush", дальность атаки уменьшается в 2 раза (округляем вверх)
+    // Парсим строку "col-row" в числа 0-индекс
+    const [startX, startY] = startCoord.split('-').map((n) => Number(n) - 1);
+
+    const cols = mapSize[0];
+    const rows = mapSize[1];
+
+    // Учитываем кусты – вдвое меньше дальность (округляем вверх)
     let effectiveRange = range;
-    if (await initialOfCell([startX, startY], roomCode) === "bush") {
+    const startCellInitial = selectedMap.map[startY]?.[startX]?.initial;
+    if (startCellInitial === 'bush') {
       effectiveRange = Math.ceil(range / 2);
     }
 
-    // Массив для хранения координат атакуемых клеток в формате "col-row"
     const attackable = [];
 
-    // Определяем четыре направления атаки: вверх, вправо, вниз, влево
     const directions = [
-      { dx: 0, dy: -1 },
-      { dx: 1, dy: 0 },
-      { dx: 0, dy: 1 },
-      { dx: -1, dy: 0 },
+      { dx: 0, dy: -1 }, // вверх
+      { dx: 1, dy: 0 },  // вправо
+      { dx: 0, dy: 1 },  // вниз
+      { dx: -1, dy: 0 }, // влево
     ];
 
-    // Для каждого направления идём клетками до предельного шага effectiveRange
     for (const { dx, dy } of directions) {
       for (let step = 1; step <= effectiveRange; step++) {
         const newX = startX + dx * step;
         const newY = startY + dy * step;
 
+        // Выход за границы – прекращаем направление
         if (newX < 0 || newX >= cols || newY < 0 || newY >= rows) break;
 
-        const cellPos = await stringFromCoord([newX, newY], 1);
+        const cellPos = `${newX + 1}-${newY + 1}`; // обратно в 1-индекс
 
-        const hasCharacter =
-          matchState.teams.red.characters.some(
-            (ch) => ch.position === cellPos
-          ) ||
-          matchState.teams.blue.characters.some(
-            (ch) => ch.position === cellPos
-          );
-        let object = await objectOnCell(cellPos, roomCode)
+        const cellInitial = selectedMap.map[newY]?.[newX]?.initial;
+
+        const object = matchState.objectsOnMap.find((o) => o.position === cellPos);
+        const hasCharacter = !!findCharacterByPositionLocal(cellPos);
+
+        // Добавляем клетку, если она пустая или содержит здание/персонаж
         if (!object) {
           attackable.push(cellPos);
-          if (hasCharacter) break;
-          if (await cellHasType(["red base", "blue base"], [newX, newY], roomCode)) break;
+
+          // Прерываемся, если встретили базу, персонажа или стену
+          if (cellInitial === 'red base' || cellInitial === 'blue base' || cellInitial === 'wall' || hasCharacter) break;
         } else {
-          if (object.type === "building") {
+          // Здание можно атаковать – добавляем и останавливаемся
+          if (object.type === 'building') {
             attackable.push(cellPos);
           }
           break;
@@ -810,16 +800,74 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     }
   };
 
-  // Функция обновления состояния партии
-  const updateMatchState = (newState) => {
+  // Функция локального обновления состояния (без отправки в WebSocket)
+  // Используется для:
+  // - Применения diff-ов от сервера
+  // - Обновления состояния из внешних источников
+  // - Любых случаев, когда НЕ нужно отправлять изменения в WebSocket
+  const updateMatchStateLocally = (newState, mode = 'full') => {
     if (!matchState) return;
 
-    const baseline = matchStateCheckpoint;
-    // Если передан полный объект состояния, используем его; иначе мержим патч
-    const updated = (newState && typeof newState === 'object' && newState.teams)
-      ? newState  // полный объект состояния
-      : newState ? { ...matchState, ...newState } : { ...matchState };  // патч или копия
+    let updated;
 
+    if (mode === 'partial' && newState && typeof newState === 'object') {
+      // Режим partial: применяем переданные изменения поверх текущего состояния
+      updated = { ...matchState, ...newState };
+    } else if (mode === 'diff-applied') {
+      // Режим diff-applied: состояние уже обновлено через applyDiffToState
+      updated = newState;
+    } else {
+      // Режим full: полное состояние или патч поверх текущего
+      updated = (newState && typeof newState === 'object' && newState.teams)
+        ? newState  // полный объект состояния
+        : newState ? { ...matchState, ...newState } : { ...matchState };  // патч или копия
+    }
+
+    // Проверяем и обновляем статус игры
+    if (updated.status && updated.status.includes("destroyed")) {
+      updated.gameTime.stopTime = Date.now()
+      updated.gameDuration = updated.gameTime.stopTime - updated.gameTime.startTime
+    }
+    else if (updated.teams && updated.teams.red && updated.teams.red.characters.filter(ch => ch.currentHP > 0).length === 0) {
+      updated.status = "blue_team_won"
+      updated.gameTime.stopTime = Date.now()
+      updated.gameDuration = updated.gameTime.stopTime - updated.gameTime.startTime
+    }
+    else if (updated.teams && updated.teams.blue && updated.teams.blue.characters.filter(ch => ch.currentHP > 0).length === 0) {
+      updated.status = "red_team_won"
+      updated.gameTime.stopTime = Date.now()
+      updated.gameDuration = updated.gameTime.stopTime - updated.gameTime.startTime
+    }
+
+    // Обновляем состояния локально БЕЗ отправки в WebSocket
+    setMatchState(updated);
+    setMatchStateCheckpoint(deepClone(updated));
+    handleFinale();
+
+    console.log('Локальное обновление состояния:', updated);
+  };
+
+  // Функция обновления состояния партии (с отправкой в WebSocket)
+  // Используется для:
+  // - Локальных действий игрока
+  // - Изменений, которые нужно синхронизировать с другими игроками
+  // - Любых случаев, когда НУЖНО отправлять изменения в WebSocket
+  const updateMatchState = (newState = matchState, mode = 'full') => {
+    const baseline = matchStateCheckpoint;
+    let updated;
+    let diff;
+
+    if (mode === 'partial' && newState && typeof newState === 'object') {
+      // Режим partial: используем переданные изменения как diff без тяжелого сравнения
+      updated = { ...baseline, ...newState };
+    } else {
+      // Режим full: полное сравнение объектов
+      updated = (newState && typeof newState === 'object' && newState.teams)
+        ? newState  // полный объект состояния
+        : newState ? { ...baseline, ...newState } : { ...baseline };  // патч или копия
+    }
+
+    // Проверяем и обновляем статус игры перед вычислением diff
     if (updated.status.includes("destroyed")) {
       updated.gameTime.stopTime = Date.now()
       updated.gameDuration = updated.gameTime.stopTime - updated.gameTime.startTime
@@ -835,12 +883,20 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
       updated.gameDuration = updated.gameTime.stopTime - updated.gameTime.startTime
     }
 
-    // Вычисляем diff и отправляем в веб-сокет
-    const diff = deepDiff(baseline, updated);
+    // Вычисляем diff после всех изменений
+    if (mode === 'partial' && newState && typeof newState === 'object') {
+      // В режиме partial используем исходные изменения плюс возможные изменения статуса
+      diff = deepDiff(baseline, updated);
+    } else {
+      // В режиме full делаем полное сравнение с baseline
+      diff = deepDiff(baseline, updated);
+    }
+
     console.log('diff', diff);
     sendMatchStateDiff(diff);
 
     setMatchState(updated);
+    setMatchStateCheckpoint(deepClone(updated));
     handleFinale();
   };
 
@@ -870,6 +926,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     const updateCells = async () => {
       if (pendingMode === "attack" && selectedCharacter) {
         setReachableCells([]);
+        console.log('Calculating attackable cells for character:', selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size);
         setAttackableCells(await calculateAttackableCells(selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size));
         setThrowableCells([]);
         setBuildingCells([]);
@@ -898,7 +955,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     };
 
     updateCells();
-  }, [pendingMode, beamSelectionMode, pointSelectionMode, zoneSelectionMode, selectedCharacter]);
+  }, [pendingMode, beamSelectionMode, pointSelectionMode, zoneSelectionMode, selectedCharacter, selectedCharacter?.position]);
 
   useEffect(() => {
     if (attackAnimations.length > 0) {
@@ -1103,9 +1160,8 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     }
   };
 
-  const handleAttack = async (selectedCharacter) => {
+  const handleAttack = async () => {
     setPendingMode("attack");
-    setAttackableCells(await calculateAttackableCells(selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size));
   };
 
   const initializePlace = async (character) => {
@@ -1330,15 +1386,22 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     if (idx !== -1) {
       console.log('coordinates', coordinates);
       teamArr[idx].position = coordinates;
+      nextState.teams[selectedCharacter.team].remain.moves -= 1;
     }
     console.log('nextState', nextState);
     console.log('matchState', matchState);
 
     await checkForStore(selectedCharacter);
-    setReachableCells(await calculateReachableCells(coordinates, selectedCharacter.currentAgility));
 
     // Передаём в updateMatchState именно новую копию
     updateMatchState(nextState);
+
+    // Обновляем selectedCharacter с новой позицией и вызываем checkModePossibility
+    if (idx !== -1) {
+      const updatedCharacter = { ...selectedCharacter, position: coordinates };
+      setSelectedCharacter(updatedCharacter);
+      await checkModePossibilityForCharacter(updatedCharacter, nextState);
+    }
   };
 
   const handleZoneFix = (coordinates) => {
@@ -1553,7 +1616,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
       setShowCharacterInfoPanel(true);
       setSelectedCharacter(character);
       setClickedEffectOnPanel(null);
-      if (isMyTurn && character.team === teamTurn) {
+      if ((matchState?.teams[matchState.teamTurn]?.player === user?.username || false) && character.team === matchState.teamTurn) {
         await checkForStore(character)
         if (matchState.teams[character.team].remain.moves > 0) {
           setPendingMode("move");
@@ -1725,11 +1788,14 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
       } else {
         if (reachableCells.includes(coordinates) && pendingMode === "move" && matchState.teams[teamTurn].remain.moves > 0) {
           await moveToCell(coordinates);
-          matchState.teams[teamTurn].remain.moves -= 1;
-          updateMatchState();
           if (matchState.teams[teamTurn].remain.moves === 0) {
-            setPendingMode(null);
             setReachableCells([]);
+            if (matchState.teams[teamTurn].remain.actions > 0) {
+              setPendingMode("attack");
+            }
+            else {
+              setPendingMode(null);
+            }
           }
         }
         if (attackableCells.includes(coordinates) && pendingMode === "attack" && matchState.teams[teamTurn].remain.actions > 0) {
@@ -2001,8 +2067,6 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
 
 
   const handleEndTurn = async () => {
-    const updatedMatchState = await endTurn(roomCode, matchState);
-    updateMatchState(updatedMatchState);
     const nextTeam = teamTurn === "red" ? "blue" : "red";
     const isNewRoundStarting = nextTeam === firstTeamToAct;
 
@@ -2041,8 +2105,6 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
           if (obj.type === "zone" && obj.turnsRemain <= 0) return false;
           return true;
         });
-
-      updateMatchState({ objectsOnMap: updatedObjects });
     }
 
     setTeamTurn(nextTeam);
@@ -2072,7 +2134,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     setPendingMode(null);
     setSelectedCharacter(null);
     addActionLog(`🎲 Ход команды ${nextTeam === "red" ? "Красные" : "Синие"}`);
-    updateMatchState();
+    updateMatchState({ ...matchState, teamTurn: nextTeam });
 
     // Очищаем авто-таймер, если он ещё активен
     if (autoEndTimer) {
@@ -2198,7 +2260,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
         );
 
         matchState.teams[casterTeam].remain.actions -= 1;
-        updateMatchState({ teams: updatedTeams });
+        updateMatchState({ teams: updatedTeams }, 'partial');
         addActionLog(`${pendingZoneEffect.caster.name} перемещается в центр области (${centerCoord})`);
       }
     }
@@ -2330,7 +2392,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
           );
 
           matchState.teams[casterTeam].remain.actions -= 1;
-          updateMatchState({ teams: updatedTeams });
+          updateMatchState({ teams: updatedTeams }, 'partial');
           addActionLog(`${pendingBeamEffect.caster.name} перемещается на ${targetPosition} после применения луча.`);
         }
       }
@@ -2621,7 +2683,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
           style={{
             gridTemplateColumns: `repeat(${selectedMap.size[0]}, 1fr)`,
             gridTemplateRows: `repeat(${selectedMap.size[1]}, 1fr)`,
-            outline: `5px solid ${teamTurn === "red" ? "#942b2b" : "#1a5896"}`,
+            outline: `5px solid ${matchState.teamTurn === "red" ? "#942b2b" : "#1a5896"}`,
             transition: "outline 0.3s ease",
             aspectRatio: "45 / 28",
             minWidth: "400px",
@@ -2649,10 +2711,10 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
               highlightStyle.boxShadow = `inset 0 0 0 3px ${highlightColor}`;
             }
 
-            const redChar = matchState.teams.red.characters.find(
+            const redChar = matchState?.teams?.red?.characters?.find(
               (ch) => ch.position === cellKey && ch.currentHP > 0
             );
-            const blueChar = matchState.teams.blue.characters.find(
+            const blueChar = matchState?.teams?.blue?.characters?.find(
               (ch) => ch.position === cellKey && ch.currentHP > 0
             );
             //Все таки будем через заготовленные классы работать
@@ -2882,7 +2944,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     );
 
     updatedTeams[casterTeam].remain.actions -= 1;
-    updateMatchState({ teams: updatedTeams });
+    updateMatchState({ teams: updatedTeams }, 'partial');
     addActionLog(`${pendingTeleportation.caster.name} телепортируется на ${targetCoord}`);
 
     // Очищаем состояния телепортации
@@ -3227,16 +3289,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     return () => clearInterval(interval);
   }, [autoEndTimer]);
 
-  // Если matchState не загружен, показываем загрузку
-  if (!matchState || !selectedMap) {
-    return (
-      <div className="game-console">
-        <div className="loading-container">
-          <p>Загрузка игры...</p>
-        </div>
-      </div>
-    );
-  }
+  const isLoading = !matchState || !selectedMap;
 
   // >>> ADD WS ADAPTER <<<
   // Инициализируем сокет комнаты для игрового обмена (plain WebSocket via hook)
@@ -3262,6 +3315,17 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
     },
   };
   // >>> END WS ADAPTER <<<
+
+  // Показываем экран загрузки, если состояние игры ещё не получено
+  if (isLoading) {
+    return (
+      <div className="game-console">
+        <div className="loading-container">
+          <p>Загрузка игры...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`game-console ${getMapName()}`} translate="no">
@@ -3289,7 +3353,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
         handleDownloadCurrentMatch={handleDownloadCurrentMatch}
         handleDownloadAllMatches={handleDownloadAllMatches}
       />
-      <div className="game-console-overlay" style={{ backgroundColor: `${teamTurn === "red" ? "rgba(102, 24, 24, 0.4)" : "rgba(34, 34, 139, 0.3)"}` }}></div>
+      <div className="game-console-overlay" style={{ backgroundColor: `${matchState.teamTurn === "red" ? "rgba(102, 24, 24, 0.4)" : "rgba(34, 34, 139, 0.3)"}` }}></div>
       {lastNotification && (
         <Notification
           message={lastNotification.text}
@@ -3315,9 +3379,9 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
         gameTime={matchState.gameTime}    // меняется только при паузе
         onSelectCharacter={handleSelectCharacter}
       />
-      <BaseInfo inventory={matchState.teams.red.inventory} gold={matchState.teams.red.gold} team="red" remain={matchState.teams.red.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} setItemHelperInfo={setItemHelperInfo} selectedCharacter={selectedCharacter} />
-      <BaseInfo inventory={matchState.teams.blue.inventory} gold={matchState.teams.blue.gold} team="blue" remain={matchState.teams.blue.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} setItemHelperInfo={setItemHelperInfo} selectedCharacter={selectedCharacter} />
-      <ControlButton round={matchState.turn} isItMyTurn={isMyTurn} handleEndRound={handleEndTurn} handlePause={handlePause} countdownProgress={countdownProgress} />
+      <BaseInfo inventory={matchState.teams.red.inventory} gold={matchState.teams.red.gold} team="red" player={matchState.teams.red.player} remain={matchState.teams.red.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} setItemHelperInfo={setItemHelperInfo} selectedCharacter={selectedCharacter} />
+      <BaseInfo inventory={matchState.teams.blue.inventory} gold={matchState.teams.blue.gold} team="blue" player={matchState.teams.blue.player} remain={matchState.teams.blue.remain} advancedSettings={matchState.advancedSettings} teamTurn={teamTurn} setItemHelperInfo={setItemHelperInfo} selectedCharacter={selectedCharacter} />
+      <ControlButton round={matchState.turn} isItMyTurn={matchState?.teams[matchState.teamTurn]?.player === user?.username || false} handleEndRound={handleEndTurn} handlePause={handlePause} countdownProgress={countdownProgress} />
       <div className="game-container">
         {renderGameMap()}
         {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn} />}
@@ -3717,7 +3781,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
         )}
         {showCharacterInfoPanel && (
           <CharacterInfoPanel
-            isMyTurn={isMyTurn}
+            isMyTurn={matchState?.teams[matchState.teamTurn]?.player === user?.username || false}
             character={selectedCharacter}
             onClose={handleCloseCharacterModal}
             onAttack={(ch) => {
@@ -3729,8 +3793,7 @@ const ChatConsole = ({ socket, user, room, teams, selectedMap, matchState: initi
             onUnselectAttack={() => {
               if (matchState.teams[teamTurn].remain.moves > 0) {
                 setPendingMode("move");
-              }
-              else {
+              } else {
                 setPendingMode(null)
               }
             }}

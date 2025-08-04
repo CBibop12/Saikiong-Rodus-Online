@@ -279,6 +279,47 @@ const Room = () => {
     // WebSocket комнаты (основные игровые события)
     // ────────────────────────────────────────────────
 
+    // Функция для применения diff к состоянию
+    const applyDiffToState = (currentState, diff) => {
+        const result = JSON.parse(JSON.stringify(currentState)); // Глубокая копия
+
+        Object.keys(diff).forEach(path => {
+            const keys = path.split('.');
+            let current = result;
+
+            // Проходим по пути до предпоследнего ключа
+            for (let i = 0; i < keys.length - 1; i++) {
+                const key = keys[i];
+                if (current[key] === undefined) {
+                    current[key] = {};
+                }
+                current = current[key];
+            }
+
+            // Устанавливаем значение, основываясь на типе изменения
+            const lastKey = keys[keys.length - 1];
+
+            const change = diff[path]; // объект вида { type, value?, newValue? }
+
+            switch (change?.type) {
+                case 'added':
+                    current[lastKey] = change.value;
+                    break;
+                case 'changed':
+                    current[lastKey] = change.newValue;
+                    break;
+                case 'deleted':
+                    delete current[lastKey];
+                    break;
+                default:
+                    // На случай неожиданных форматов применяем старое поведение
+                    current[lastKey] = change;
+            }
+        });
+
+        return result;
+    };
+
     // Обработчик входящих событий комнаты
     const handleRoomEvent = (event) => {
         if (!event?.type) return;
@@ -309,6 +350,18 @@ const Room = () => {
                 if (newState) {
                     setRoom((prev) => ({ ...prev, roomState: newState }));
                 }
+                break;
+            }
+            case 'MATCH_STATE_DIFF': {
+                // Применяем diff к matchState
+                setRoom((prev) => {
+                    if (!prev || !prev.matchState || !event.payload?.diff) {
+                        return prev;
+                    }
+
+                    const updatedMatchState = applyDiffToState(prev.matchState, event.payload.diff);
+                    return { ...prev, matchState: updatedMatchState };
+                });
                 break;
             }
             case 'PLAYER_JOINED': {
