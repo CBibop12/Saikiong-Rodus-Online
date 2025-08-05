@@ -14,3 +14,13 @@ export const randomArrayElement = (arr, mode = "element") => {
 export function generateId() {
     return Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
 }
+
+export const isItMyTurn = (user, room, teamTurn) => {
+    console.log('room', room);
+    console.log('teamTurn', teamTurn);
+    console.log('user', user);
+    console.log('room.matchState.teams[teamTurn].player', room.matchState.teams[teamTurn].player);
+    console.log('user.username', user.username);
+    console.log('room.matchState.teams[teamTurn].player === user.username', room.matchState.teams[teamTurn].player === user.username);
+    return room.matchState.teams[teamTurn].player === user.username
+}

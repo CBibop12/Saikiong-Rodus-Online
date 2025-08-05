@@ -322,7 +322,7 @@ const ContextMenu = ({
                 }
                 
                 // Обновляем matchState
-                updateMatchState({ churches: updatedChurches });
+                updateMatchState({ churches: updatedChurches }, 'partial');
                 
                 // Закрываем контекстное меню
                 setContextMenu({ ...contextMenu, visible: false });

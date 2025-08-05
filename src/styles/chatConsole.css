@@ -1546,6 +1546,12 @@
   padding: 10px;
 }
 
+.end-round-section .upper-section {
+  display: flex;
+  align-items: center;
+  justify-content: right;
+}
+
 .end-round-section h3 {
   font-size: 24px;
   font-weight: 600;
@@ -1557,6 +1563,7 @@
 
 .control-buttons {
   display: flex;
+  justify-content: right;
   gap: 10px;
 }
 
