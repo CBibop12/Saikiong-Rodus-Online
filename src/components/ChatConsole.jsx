@@ -46,10 +46,12 @@ const RANGE_OF_THROWABLE_OBJECTS = 5;
 const RANGE_OF_BUILDING_OBJECTS = 1;
 const INVENTORY_BASE_LIMIT = 3;
 
+const GAME_BASE = 'https://sr-game-backend-32667b36f309.herokuapp.com';
+
 // API функции для работы с сервером
 const apiRequest = async (url, options = {}) => {
   const token = localStorage.getItem('srUserToken');
-  const response = await fetch(url, {
+  const response = await fetch(`${GAME_BASE}${url}`, {
     ...options,
     headers: {
       'Authorization': `Bearer ${token}`,
