@@ -21,7 +21,7 @@ const MainMenu = () => {
       return;
     }
 
-    const apiBase = import.meta.env.VITE_API_BASE || 'http://localhost:4000';
+    const apiBase = import.meta.env.VITE_API_BASE || 'https://sr-game-backend-32667b36f309.herokuapp.com';
     fetch(`${apiBase}/users/me`, {
       headers: {
         Authorization: `Bearer ${token}`,

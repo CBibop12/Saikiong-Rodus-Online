@@ -7,7 +7,7 @@ export const useRoomSocket = (roomCode, onEvent) => {
         if (!roomCode) return;
 
         const token = localStorage.getItem('srUserToken');
-        const wsBase = import.meta.env.VITE_WS_BASE || 'ws://localhost:4000';
+        const wsBase = import.meta.env.VITE_WS_BASE || 'wss://sr-game-backend-32667b36f309.herokuapp.com';
         const socket = new WebSocket(`${wsBase}/rooms/${roomCode}?token=${token}`);
 
         wsRef.current = socket;

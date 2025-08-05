@@ -6,10 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/auth': 'http://localhost:4000',
-      '/rooms': 'http://localhost:4000',
-      '/api':   'http://localhost:4000',
-      '/users': 'http://localhost:4000',
+      '/auth': 'https://sr-game-backend-32667b36f309.herokuapp.com',
+      '/rooms': 'https://sr-game-backend-32667b36f309.herokuapp.com',
+      '/api':   'https://sr-game-backend-32667b36f309.herokuapp.com',
+      '/users': 'https://sr-game-backend-32667b36f309.herokuapp.com',
     }
   }
 })
