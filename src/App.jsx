@@ -6,8 +6,8 @@ import ContinueGame from './components/ContinueGame';
 import Rules from './components/Rules';
 import Statistics from './components/Statistics';
 import AuthGate from './components/components/AuthGate';
-import AuthError from './components/AuthError';
 import Room from './components/Room';
+import AuthError from './components/AuthError.jsx';
 
 function App() {
   return (
