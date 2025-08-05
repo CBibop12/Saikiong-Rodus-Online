@@ -6,6 +6,7 @@ import ContinueGame from './components/ContinueGame';
 import Rules from './components/Rules';
 import Statistics from './components/Statistics';
 import AuthGate from './components/components/AuthGate';
+import AuthError from './components/AuthError';
 import Room from './components/Room';
 
 function App() {
@@ -18,6 +19,7 @@ function App() {
           <Route path="/continue-game" element={<ContinueGame />} />
           <Route path="/rules" element={<Rules />} />
           <Route path="/statistics" element={<Statistics />} />
+          <Route path="/auth-error" element={<AuthError />} />
           <Route path="/room/:roomCode" element={<Room />} />
         </Routes>
       </AuthGate>
