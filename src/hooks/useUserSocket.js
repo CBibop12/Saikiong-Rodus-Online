@@ -7,7 +7,7 @@ export const useUserSocket = (onEvent) => {
         const token = localStorage.getItem('srUserToken');
         if (!token) return;
 
-        const base = import.meta.env.VITE_WS_BASE || 'ws://localhost:4000';
+        const base = import.meta.env.VITE_WS_BASE || 'wss://sr-game-backend-32667b36f309.herokuapp.com';
         const socket = new WebSocket(`${base}/users?token=${token}`);
 
         wsRef.current = socket;
