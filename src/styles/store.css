@@ -8,7 +8,13 @@
   max-height: 40vh;
   background: linear-gradient(to bottom,rgb(118, 66, 28),rgb(64, 40, 15));
   border: 2px solid #D4AF37;
-  overflow-y: scroll;
+  overflow-y: auto; /* сохраняем прокрутку */
+  scrollbar-width: none; /* скрываем дефолтный скроллбар Firefox */
+}
+
+/* Скрываем дефолтный скроллбар для WebKit-браузеров */
+.store-container::-webkit-scrollbar {
+  display: none;
 }
 
 .store-header {
@@ -51,9 +57,15 @@
 .items-list {
   display: flex;
   flex-direction: column;
-  overflow-y: scroll;
+  overflow-y: auto; /* сохраняем прокрутку */
+  scrollbar-width: none; /* Firefox */
   gap: 10px;
   padding: 0 10px 10px;
+}
+
+/* WebKit */
+.items-list::-webkit-scrollbar {
+  display: none;
 }
 
 .item-card {
