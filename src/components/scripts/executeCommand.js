@@ -169,7 +169,14 @@ const executeCommand = (object, context) => {
     return;
   }
 
-  if (matchState.teams[findCharacter(characterName, matchState).team].remain.actions === 0) {
+  if (matchState.teams[findCharacter(characterName, matchState).team].remain.actions === 0 && !(
+    commandType === "buy" &&
+    (() => {
+      const itmName = commandObject?.item;
+      const itmData = availableItems.find(it => it.name.toLowerCase() === (itmName || "").toLowerCase());
+      return itmData?.shopType === "Магический";
+    })()
+  )) {
     addActionLog(`${characterName} не может совершить действие`);
     return;
   }
@@ -265,7 +272,9 @@ const executeCommand = (object, context) => {
         itemData.onWear ? itemData.onWear(charObj) : null;
       }
 
-      matchState.teams[findCharacter(characterName, matchState).team].remain.actions -= 1;
+      if (itemData.shopType !== "Магический") {
+        matchState.teams[findCharacter(characterName, matchState).team].remain.actions -= 1;
+      }
       updateMatchState();
       return;
     }
