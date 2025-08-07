@@ -16,10 +16,13 @@ export function generateId() {
 }
 
 export const isItMyTurn = (user, room, teamTurn) => {
-    // Проверяем наличие всех необходимых данных
-    if (!user || !user.username) return false;
-    if (!room || !room.matchState || !room.matchState.teams) return false;
-    if (!teamTurn || !room.matchState.teams[teamTurn]) return false;
-
-    return room.matchState.teams[teamTurn].player === user.username;
+    try {
+        const username = user && typeof user === 'object' ? user.username : undefined;
+        if (!username) return false;
+        const teams = room && room.matchState && room.matchState.teams ? room.matchState.teams : undefined;
+        if (!teams || !teamTurn || !teams[teamTurn]) return false;
+        return teams[teamTurn].player === username;
+    } catch {
+        return false;
+    }
 }

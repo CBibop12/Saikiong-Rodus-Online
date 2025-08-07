@@ -94,7 +94,7 @@ const Room = () => {
 
     // Загрузка второго игрока, когда и room, и user уже получены
     useEffect(() => {
-        if (!room || !user) return;
+        if (!room || !user?.username) return;
 
         if (room.participants?.length > 1) {
             const secondPlayerCandidate = room.participants.find(p => p.username !== user.username);
@@ -104,7 +104,7 @@ const Room = () => {
         } else {
             setSecondPlayer(null); // если второго игрока убрали
         }
-    }, [room, user]);
+    }, [room, user?.username]);
 
     // Web-socket для чата
     useEffect(() => {
@@ -251,16 +251,16 @@ const Room = () => {
             setShowSearch(false);
             setSearchQuery('');
             setSearchResults([]);
-            await requestSecondPlayer(updatedRoom.participants.find(p => p._id !== user._id));
+            await requestSecondPlayer(updatedRoom.participants.find(p => p._id !== user?._id));
         } catch (err) {
             console.error('Ошибка приглашения игрока:', err);
             setError('Не удалось пригласить игрока');
         }
     };
 
-    const openChatWith = async (user) => {
+    const openChatWith = async (userToChat) => {
         try {
-            const friend = await userRoutes.getUserByUsername(user.username);
+            const friend = await userRoutes.getUserByUsername(userToChat.username);
             const chatData = await getChat(friend._id);
             setChat(chatData);
             setChatWith(friend);
@@ -325,18 +325,15 @@ const Room = () => {
     const handleRoomEvent = (event) => {
         if (!event?.type) return;
 
-        // Логируем только важные события, не ROOM_UPDATED
         if (event.type !== 'ROOM_UPDATED') {
             console.log('Room event received:', event.type, event);
         }
 
         switch (event.type) {
             case 'ROOM_UPDATED': {
-                // Полный объект комнаты – заменяем целиком
                 const updatedRoom = event.room || event.payload || event;
                 setRoom(updatedRoom);
 
-                // Если в комнате есть selectedMap, но у нас его нет - устанавливаем
                 if (updatedRoom.selectedMap && !selectedMap) {
                     const map = maps.find(m => m.name === updatedRoom.selectedMap);
                     if (map) {
@@ -346,7 +343,6 @@ const Room = () => {
                 break;
             }
             case 'ROOM_STATE_CHANGED': {
-                // Частичный diff – только новый статус
                 const newState = event.roomState || event.payload?.roomState;
                 if (newState) {
                     setRoom((prev) => ({ ...prev, roomState: newState }));
@@ -354,7 +350,6 @@ const Room = () => {
                 break;
             }
             case 'MATCH_STATE_DIFF': {
-                // Применяем diff к matchState
                 setRoom((prev) => {
                     if (!prev || !prev.matchState || !event.payload?.diff) {
                         return prev;
@@ -366,42 +361,32 @@ const Room = () => {
                 break;
             }
             case 'PLAYER_JOINED': {
-                // joined: true | false
-                const { user, username, joined } = event;
-                console.log('user', user);
-                console.log('username', username);
-                console.log('joined', joined);
+                const { user: joinedUser, username, joined } = event;
                 if (!username) break;
                 setRoom((prev) => {
                     if (!prev) return prev;
                     let participants = prev.participants || [];
                     if (joined) {
-                        // если такого игрока ещё нет – добавляем
                         if (!participants.find((p) => p.username === username)) {
                             participants = [...participants, { username }];
                         }
                     } else {
-                        // убираем игрока, вышедшего из комнаты
                         participants = participants.filter((p) => p.username !== username);
                     }
                     return { ...prev, participants };
                 });
-                console.log('user', user);
-                // Обновляем локального пользователя только если данные пришли
-                if (user) {
-                    setUser(user);
+                if (joinedUser) {
+                    setUser(joinedUser);
                 }
                 break;
             }
             case 'CHARACTER_PICK_REJECTED': {
                 const reason = event.reason || 'Персонаж уже выбран соперником';
                 setError(reason);
-                // очищаем сообщение через несколько секунд
                 setTimeout(() => setError(''), 3000);
                 break;
             }
             case 'MAP_SELECTED': {
-                // Один из игроков выбрал карту
                 const { username, selectedMap } = event.payload || event;
                 if (username && selectedMap) {
                     setRoom((prev) => {
@@ -414,55 +399,42 @@ const Room = () => {
                 break;
             }
             case 'MAP_SELECTION_RESULT': {
-                // Результат выбора карты: {selectionType: "random" | "exact", mapName: "..."}
                 const result = event;
                 setMapSelectionResult(result);
-
-                // Находим выбранную карту
                 const map = maps.find(m => m.name === result.mapName);
                 if (map) {
                     setSelectedMap(map);
                 }
-
-                // Если карты различались и победитель определён случайно – показываем колесо фортуны
                 if (result.selectionType === 'random') {
                     setShowFortuneWheel(true);
                 }
                 break;
             }
             case 'MAP_CONFIRMED': {
-                // Карта подтверждена - Room обновится через ROOM_UPDATED
                 break;
             }
             case 'TEAM_ASSIGNMENT_RESULT': {
                 const result = event.payload || event;
-                console.log('Team assignment result:', result);
-
                 setTeamAssignmentResult(result);
 
-                // Определяем мою сторону
                 if (user?.username) {
                     if (result.red === user.username) setMyTeam('red');
                     else if (result.blue === user.username) setMyTeam('blue');
                 }
 
                 if (result.type === 'random') {
-                    // Запускаем колесо фортуны
                     setShowTeamWheel(true);
                 }
 
                 break;
             }
             case 'CHARACTER_POSITIONED': {
-                // Персонаж размещен - обновление позиций придет через ROOM_UPDATED
                 break;
             }
             case 'POSITIONING_CONFIRMED': {
-                // Позиционирование подтверждено - переход к игре
                 break;
             }
             case 'PLAYER_LEFT': {
-                // Игрок покинул комнату
                 const { username } = event.payload || event;
                 if (!username) break;
                 setRoom((prev) => {
@@ -478,36 +450,27 @@ const Room = () => {
                 break;
             }
             default:
-                // Для остальных событий пока ничего не делаем – обработают специализированные компоненты
                 break;
         }
     };
 
-    // Подключаемся к WS комнаты
     const { emit: emitRoomEvent } = useRoomSocket(roomCode, handleRoomEvent);
 
     const startSettingUpGame = () => {
-        // Новый протокол: отправляем событие START_SETTING_UP_GAME
         emitRoomEvent('START_SETTING_UP_GAME');
     }
 
-    // Драфт закончен – сервер сообщит об этом событием CHARACTER_SELECTION_FINISHED
-    // Здесь мы можем обработать это локально при необходимости
     const handleDraftFinished = () => {
-        // Пока ничего не делаем – Room обновится через ROOM_UPDATED
     };
 
-    // Завершение анимации колеса фортуны
     const handleFortuneWheelComplete = () => {
         setShowFortuneWheel(false);
-        // Состояние комнаты изменится на mapConfirm через веб-сокет
     };
 
     const handleTeamWheelComplete = () => {
         setShowTeamWheel(false);
     };
 
-    // Обновляем мою сторону при обновлении комнаты или пользователя
     useEffect(() => {
         if (user?.username && room?.teamAssignments) {
             if (room.teamAssignments.red === user.username) setMyTeam('red');
@@ -604,7 +567,7 @@ const Room = () => {
                         </div>
 
                         {/* Правая сторона - второй игрок или кнопка добавления */}
-                        {(room?.participants?.length > 1 & !showSearch) ? (
+                        {(room?.participants?.length > 1 && !showSearch) ? (
                             <div className="player-slot second">
                                 <div className="player-avatar">
                                     <img src={secondPlayer?.avatar || '/assets/images/logo.png'} alt="Аватар" />

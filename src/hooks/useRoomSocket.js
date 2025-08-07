@@ -3,34 +3,58 @@ import { useEffect, useRef } from 'react';
 
 export const useRoomSocket = (roomCode, onEvent) => {
     const wsRef = useRef(null);
-    // Новый ref для хранения id интервала пинга
     const pingIntervalRef = useRef(null);
+    const reconnectTimeoutRef = useRef(null);
+    const retryAttemptRef = useRef(0);
+    const roomCodeRef = useRef(roomCode);
+    const onEventRef = useRef(onEvent);
 
-    useEffect(() => {
-        if (!roomCode) return;
+    onEventRef.current = onEvent;
+    roomCodeRef.current = roomCode;
+
+    const clearPing = () => {
+        if (pingIntervalRef.current) {
+            clearInterval(pingIntervalRef.current);
+            pingIntervalRef.current = null;
+        }
+    };
+
+    const cleanupSocket = () => {
+        clearPing();
+        if (wsRef.current) {
+            try { wsRef.current.close(); } catch { /* noop */ }
+            wsRef.current = null;
+        }
+    };
+
+    const scheduleReconnect = () => {
+        // экспоненциальная задержка до 10 секунд
+        const attempt = retryAttemptRef.current + 1;
+        retryAttemptRef.current = attempt;
+        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
+        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = setTimeout(() => {
+            connect();
+        }, delay);
+    };
+
+    const connect = () => {
+        const code = roomCodeRef.current;
+        if (!code) return;
 
         const token = localStorage.getItem('srUserToken');
         const wsBase = import.meta.env.VITE_WS_BASE || 'wss://sr-game-backend-32667b36f309.herokuapp.com';
-        const socket = new WebSocket(`${wsBase}/rooms/${roomCode}?token=${token}`);
+        const socket = new WebSocket(`${wsBase}/rooms/${code}?token=${token}`);
 
         wsRef.current = socket;
 
-        // Функция-помощник для очистки интервала
-        const clearPing = () => {
-            if (pingIntervalRef.current) {
-                clearInterval(pingIntervalRef.current);
-                pingIntervalRef.current = null;
-            }
-        };
-
         socket.onopen = () => {
-            console.info('🔌 WebSocket открыт');
-            // Запускаем периодический пинг каждые 25 секунд,
-            // чтобы соединение не простаивало слишком долго
+            console.info('🔌 Room WebSocket открыт');
+            retryAttemptRef.current = 0; // сбрасываем счётчик попыток
+            // heartbeat каждые 25 сек
+            clearPing();
             pingIntervalRef.current = setInterval(() => {
                 if (socket.readyState === WebSocket.OPEN) {
-                    // Отправляем простое ping-сообщение, которое сервер
-                    // может игнорировать. Главное — чтобы трафик шёл.
                     socket.send(JSON.stringify({ type: 'PING' }));
                 }
             }, 25000);
@@ -39,37 +63,44 @@ export const useRoomSocket = (roomCode, onEvent) => {
         socket.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
-                // Игнорируем ответы сервера на пинг, если они есть
                 if (data?.type === 'PONG' || data?.type === 'PING') return;
-                onEvent && onEvent(data);
+                onEventRef.current && onEventRef.current(data);
             } catch (err) {
                 console.error('Ошибка парсинга сообщения WebSocket', err);
             }
         };
 
         socket.onerror = (err) => {
-            console.error('WebSocket error', err);
+            console.error('Room WebSocket error', err);
         };
 
         socket.onclose = () => {
-            console.info('🔌 WebSocket закрыт');
-            // Чистим интервал при закрытии
+            console.info('🔌 Room WebSocket закрыт');
             clearPing();
+            scheduleReconnect();
         };
+    };
 
-        // При размонтировании закрываем соединение и очищаем интервал
+    useEffect(() => {
+        connect();
         return () => {
-            clearPing();
-            socket.close();
+            if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+            cleanupSocket();
         };
     }, [roomCode]);
 
     const emit = (type, payload) => {
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        const socket = wsRef.current;
+        if (socket && socket.readyState === WebSocket.OPEN) {
             const message = payload === undefined ? { type } : { type, payload };
-            wsRef.current.send(JSON.stringify(message));
+            socket.send(JSON.stringify(message));
         }
     };
 
-    return { emit };
+    const close = () => {
+        if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
+        cleanupSocket();
+    };
+
+    return { emit, close };
 }; 
