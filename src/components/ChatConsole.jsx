@@ -107,7 +107,13 @@ const calculateCellsZone = async (startCoord, range, roomCode, forbiddenTypes = 
       teleportGoThrough,
     }),
   });
-  return response.cells;
+  // Возвращаем объект {reachable, freeCells} или создаем его из старого формата для совместимости
+  if (response.reachable && response.freeCells !== undefined) {
+    return response;
+  } else {
+    // Для совместимости со старым API
+    return { reachable: response.cells || response, freeCells: [] };
+  }
 };
 
 const calculateNearCells = async (coord, roomCode) => {
@@ -244,6 +250,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   });
   // Состояния для подсвеченных клеток (например, доступных для перемещения или атаки)
   const [reachableCells, setReachableCells] = useState([]);
+  const [freeCells, setFreeCells] = useState([]); // Клетки-партнёры порталов для selectedCharacter
   const [attackableCells, setAttackableCells] = useState([]);
   const [throwableCells, setThrowableCells] = useState([]);
   const [selectionOverlay, setSelectionOverlay] = useState([]);
@@ -471,36 +478,56 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   const checkModePossibility = async () => {
     if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
       setPendingMode("move");
-      setReachableCells(await calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility));
+      const cellsData = await calculateReachableCellsWithFree(selectedCharacter.position, selectedCharacter.currentAgility);
+      setReachableCells(cellsData.reachable);
+      setFreeCells(cellsData.freeCells);
       setAttackableCells([]);
     }
     else if (matchState.teams[selectedCharacter.team].remain.actions > 0) {
       setPendingMode("attack");
       setAttackableCells(await calculateAttackableCells(selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size));
       setReachableCells([]);
+      // Сохраняем freeCells только если персонаж на портале
+      if (!isCharacterOnPortal(selectedCharacter.position)) {
+        setFreeCells([]);
+      }
     }
     else {
       setPendingMode(null);
       setReachableCells([]);
       setAttackableCells([]);
+      // Очищаем freeCells только если персонаж не на портале
+      if (!isCharacterOnPortal(selectedCharacter.position)) {
+        setFreeCells([]);
+      }
     }
   }
 
   const checkModePossibilityForCharacter = async (character, state = matchState) => {
     if (state.teams[character.team].remain.moves > 0) {
       setPendingMode("move");
-      setReachableCells(await calculateReachableCells(character.position, character.currentAgility));
+      const cellsData = await calculateReachableCellsWithFree(character.position, character.currentAgility);
+      setReachableCells(cellsData.reachable);
+      setFreeCells(cellsData.freeCells);
       setAttackableCells([]);
     }
     else if (state.teams[character.team].remain.actions > 0) {
       setPendingMode("attack");
       setAttackableCells(await calculateAttackableCells(character.position, character.currentRange, selectedMap.size));
       setReachableCells([]);
+      // Сохраняем freeCells только если персонаж на портале
+      if (!isCharacterOnPortal(character.position)) {
+        setFreeCells([]);
+      }
     }
     else {
       setPendingMode(null);
       setReachableCells([]);
       setAttackableCells([]);
+      // Очищаем freeCells только если персонаж не на портале
+      if (!isCharacterOnPortal(character.position)) {
+        setFreeCells([]);
+      }
     }
   }
 
@@ -597,7 +624,19 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   }
 
   const calculateReachableCells = async (startCoord, range) => {
-    return await calculateCellsZone(startCoord, range, roomCode, ["red base", "blue base", "magic shop", "laboratory", "armory"], false, false, true);
+    const result = await calculateCellsZone(startCoord, range, roomCode, ["red base", "blue base", "magic shop", "laboratory", "armory"], false, false, true);
+    return result.reachable;
+  }
+
+  const calculateReachableCellsWithFree = async (startCoord, range) => {
+    const result = await calculateCellsZone(startCoord, range, roomCode, ["red base", "blue base", "magic shop", "laboratory", "armory"], false, false, true);
+    return result;
+  }
+
+  const isCharacterOnPortal = (position) => {
+    const [col, row] = splitCoordLocal(position, 1);
+    const cell = selectedMap?.map?.[row]?.[col];
+    return cell && (cell.initial === "red portal" || cell.initial === "blue portal");
   }
 
   // Локальный расчёт клеток для атаки без обращения к API
@@ -933,10 +972,13 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         setAttackableCells(await calculateAttackableCells(selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size));
         setThrowableCells([]);
         setBuildingCells([]);
+        setFreeCells([]);
       }
       if (pendingMode === "move" && selectedCharacter) {
         setAttackableCells([]);
-        setReachableCells(await calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility));
+        const cellsData = await calculateReachableCellsWithFree(selectedCharacter.position, selectedCharacter.currentAgility);
+        setReachableCells(cellsData.reachable);
+        setFreeCells(cellsData.freeCells);
         setThrowableCells([]);
         setBuildingCells([]);
       }
@@ -944,16 +986,26 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         setAttackableCells([]);
         setReachableCells([]);
         setBuildingCells([]);
+        setFreeCells([]);
       }
       else if (pendingMode === null) {
         setReachableCells([]);
         setAttackableCells([]);
         setThrowableCells([]);
+        if (selectedCharacter && isCharacterOnPortal(selectedCharacter.position)) {
+          const cellsData = await calculateReachableCellsWithFree(selectedCharacter.position, selectedCharacter.currentAgility);
+          console.log('freeCells', cellsData.freeCells);
+          setFreeCells(cellsData.freeCells);
+        }
+        else {
+          setFreeCells([]);
+        }
       }
       if ((beamSelectionMode || pointSelectionMode || zoneSelectionMode) && pendingMode !== null) {
         setReachableCells([]);
         setAttackableCells([]);
         setPendingMode(null);
+        setFreeCells([]);
       }
     };
 
@@ -1389,7 +1441,10 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     if (idx !== -1) {
       console.log('coordinates', coordinates);
       teamArr[idx].position = coordinates;
-      nextState.teams[selectedCharacter.team].remain.moves -= 1;
+      // Движение через портал (freeCells) не расходует ход
+      if (!freeCells.includes(coordinates)) {
+        nextState.teams[selectedCharacter.team].remain.moves -= 1;
+      }
     }
     console.log('nextState', nextState);
     console.log('matchState', matchState);
@@ -1551,7 +1606,9 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         if (character.name === selectedCharacter.name) {
           if (matchState.teams[selectedCharacter.team].remain.moves > 0 && teamTurn === selectedCharacter.team) {
             setPendingMode("move");
-            setReachableCells(await calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility));
+            const cellsData = await calculateReachableCellsWithFree(selectedCharacter.position, selectedCharacter.currentAgility);
+            setReachableCells(cellsData.reachable);
+            setFreeCells(cellsData.freeCells);
           }
           else {
             setPendingMode(null)
@@ -1570,7 +1627,9 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
             setAttackableCells([])
             if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
               setPendingMode("move");
-              setReachableCells(await calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility));
+              const cellsData = await calculateReachableCellsWithFree(selectedCharacter.position, selectedCharacter.currentAgility);
+              setReachableCells(cellsData.reachable);
+              setFreeCells(cellsData.freeCells);
             }
           }
           updateMatchState()
@@ -1789,10 +1848,14 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           });
         }
       } else {
-        if (reachableCells.includes(coordinates) && pendingMode === "move" && matchState.teams[teamTurn].remain.moves > 0) {
+        if (((reachableCells.includes(coordinates) && pendingMode === "move" && matchState.teams[teamTurn].remain.moves > 0) || (freeCells.includes(coordinates) && isCharacterOnPortal(selectedCharacter.position)))) {
           await moveToCell(coordinates);
           if (matchState.teams[teamTurn].remain.moves === 0) {
             setReachableCells([]);
+            // Очищаем freeCells только если персонаж не на портале
+            if (!isCharacterOnPortal(coordinates)) {
+              setFreeCells([]);
+            }
             if (matchState.teams[teamTurn].remain.actions > 0) {
               setPendingMode("attack");
             }
@@ -2136,6 +2199,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
     setPendingMode(null);
     setSelectedCharacter(null);
+    setFreeCells([]); // Очищаем freeCells при завершении хода
     addActionLog(`🎲 Ход команды ${nextTeam === "red" ? "Красные" : "Синие"}`);
     updateMatchState({ ...matchState, teamTurn: nextTeam });
 
@@ -2723,7 +2787,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
             //Все таки будем через заготовленные классы работать
             // Дополнительные классы (reachable, attackable, hovered, etc.)
             const classes = ["cell-wrapper"];
-            if (reachableCells.includes(cellKey))
+            if (reachableCells.includes(cellKey) || freeCells.includes(cellKey))
               classes.push("reachable-cell");
             if (attackableCells.includes(cellKey))
               classes.push("attackable-cell");
@@ -2979,6 +3043,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     (char) => {
       setSelectedCharacter(char);
       setPendingMode(null);
+      setFreeCells([]); // Очищаем freeCells при смене персонажа
     },
     []                                   // всегда одна и та же ссылка
   );
@@ -3056,7 +3121,9 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     setThrowableCells([]);
     if (matchState.teams[teamTurn].remain.moves > 0) {
       setPendingMode("move")
-      setReachableCells(await calculateReachableCells(selectedCharacter.position, selectedCharacter.currentAgility));
+      const cellsData = await calculateReachableCellsWithFree(selectedCharacter.position, selectedCharacter.currentAgility);
+      setReachableCells(cellsData.reachable);
+      setFreeCells(cellsData.freeCells);
     }
     else {
       setPendingMode(null)
