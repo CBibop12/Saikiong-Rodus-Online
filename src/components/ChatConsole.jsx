@@ -336,6 +336,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   const [countdownProgress, setCountdownProgress] = useState(0); // 0-1
   const [isMyTurn, setIsMyTurn] = useState(false);
 
+  const [magicCart, setMagicCart] = useState([]);
 
   // Эффект для синхронизации состояний с веб-сокетом
   useEffect(() => {
@@ -3220,6 +3221,14 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   }
 
   const handleComplexBuy = async (item) => {
+    if (store === "magic shop") {
+      if (magicCart.length >= selectedCharacter.inventoryLimit - selectedCharacter.inventory.length) {
+        addActionLog("Недостаточно места в инвентаре для покупки предмета");
+        return;
+      }
+      setMagicCart(prev => [...prev, item]);
+      return;
+    }
     const allies = alliesNearStore();
     if (allies.length === 1) {
       await handleBuyItem(item);
@@ -3245,6 +3254,65 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     }
     updateMatchState();
   }
+
+  const handleFinalizeMagicPurchase = () => {
+    if (magicCart.length === 0) return;
+    const totalCost = magicCart.reduce((sum, it) => sum + it.price, 0);
+    if (matchState.teams[teamTurn].gold < totalCost) {
+      addActionLog("Недостаточно золота для покупки выбранных предметов");
+      return;
+    }
+    // Сохраняем начальное число действий, чтобы потом списать одно
+    const initialActions = matchState.teams[teamTurn].remain.actions;
+    magicCart.forEach((it) => {
+      executeCommand({
+        characterName: selectedCharacter.name,
+        commandType: "buy",
+        commandObject: { item: it.name }
+      }, {
+        matchState,
+        updateMatchState,
+        addActionLog,
+        setTeam1Gold,
+        setTeam2Gold,
+        setZoneSelectionMode,
+        setPendingZoneEffect,
+        setBeamSelectionMode,
+        setPendingBeamEffect,
+        setHighlightedZone,
+        calculateBeamCells,
+        setBeamCells,
+        selectedMap,
+        turn: matchState.turn,
+        setSelectionOverlay,
+        addObjectOnMap,
+        calculateBeamCellsComb,
+        calculateTeleportationCells,
+        setTeleportationMode,
+        setPendingTeleportation,
+        setTeleportationCells,
+        setPointSelectionMode,
+        setPendingPointEffect,
+        setPointCells,
+        calculatePointCells,
+        calculateThrowableCells,
+        setThrowableCells,
+        throwableCells,
+      });
+    });
+    // Списываем одно действие после всех покупок, если оно было доступно
+    if (initialActions > 0) {
+      matchState.teams[teamTurn].remain.actions = initialActions - 1;
+    }
+    // Списываем золото
+    // matchState.teams[teamTurn].gold -= totalCost;
+    // if (teamTurn === "red") setTeam1Gold(matchState.teams.red.gold);
+    // else setTeam2Gold(matchState.teams.blue.gold);
+    updateMatchState();
+    // Очищаем корзину и закрываем магазин
+    setMagicCart([]);
+    setStore(null);
+  };
 
   // ─────────────────────────────────────────────
   //  Следим за оставшимися действиями/ходами и запускаем автотаймер
@@ -3329,6 +3397,10 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     );
   }
 
+  const handleRemoveFromCart = (index) => {
+    setMagicCart(prev => prev.filter((_, i) => i !== index));
+  };
+
   return (
     <div className={`game-console ${getMapName()}`} translate="no">
       {finalWindow && <Finale status={matchState.status} duration={matchState.gameDuration} turns={matchState.turn} handleCloseFinale={handleCloseFinale} handleDownloadStats={handleDownloadStats} />}
@@ -3367,10 +3439,16 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           matchState={matchState}
           character={selectedCharacter ? selectedCharacter : null}
           storeType={store}
-          onClose={() => setStore(null)}
+          onClose={() => {
+            setMagicCart([]);
+            setStore(null);
+          }}
           onBuy={handleComplexBuy}
           selectedMap={selectedMap}
           alliesNearStore={alliesNearStore}
+          cartItems={magicCart}
+          onFinalizeCart={handleFinalizeMagicPurchase}
+          onRemoveFromCart={handleRemoveFromCart}
         />
       )}
       <GameHeader

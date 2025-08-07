@@ -5,7 +5,7 @@
   top: 50%;
   transform: translateY(-50%);
   width: 300px;
-  max-height: 40vh;
+  max-height: 60vh;
   background: linear-gradient(to bottom,rgb(118, 66, 28),rgb(64, 40, 15));
   border: 2px solid #D4AF37;
   overflow-y: auto; /* сохраняем прокрутку */
@@ -31,6 +31,49 @@
   margin-bottom: 15px;
   color: #D4AF37;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.store-header-buttons {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.cart-tab-button {
+  background: transparent;
+  border: 1px solid #D4AF37;
+  color: #D4AF37;
+  padding: 2px 5px;
+  margin: 5px 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.cart-tab-button:hover {
+  background: rgba(212, 175, 55, 0.3);
+}
+
+.cart-tab-button.active {
+  background: rgba(212, 175, 55, 0.5);
+  color: #FFD700;
+}
+
+.cart-counter {
+  background: #FFD700;
+  color: #000;
+  border-radius: 50%;
+  display: flex;
+  width: 16px;
+  height: 16px;
+  margin-left: 5px;
+  font-size: 18px;
+  font-weight: bold;
+  align-items: center;
+  justify-content: center;
 }
 
 .shop-close-button {
@@ -280,4 +323,110 @@
 .store-recipient-option.selected {
   background: rgba(212, 175, 55, 0.3);
   border: 2px solid #FFD700;
+}
+
+/* Magic Cart Styles */
+.magic-cart-container {
+  margin-top: 20px;
+  padding: 15px;
+  background: rgba(64, 40, 15, 0.8);
+  border: 1px solid #D4AF37;
+  border-radius: 4px;
+}
+
+.magic-cart-container h3 {
+  margin: 0 0 15px 0;
+  color: #FFD700;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  font-size: 20px;
+  text-align: center;
+}
+
+.magic-cart-container p {
+  color: #FFD700;
+  text-align: center;
+  margin: 10px 0;
+  font-style: italic;
+}
+
+.cart-item-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 8px;
+  background: rgba(156, 81, 27, 0.5);
+  border: 1px solid #D4AF37;
+  border-radius: 3px;
+}
+
+.cart-item-row span:first-child {
+  color: #FFD700;
+  font-size: 16px;
+  flex-grow: 1;
+}
+
+.cart-item-row span:nth-child(2) {
+  color: #FFD700;
+  font-size: 16px;
+  font-weight: bold;
+}
+
+.cart-remove-button {
+  background: transparent;
+  border: 1px solid #D4AF37;
+  color: #D4AF37;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  margin-left: 8px;
+  padding-top: 4px;
+}
+
+.cart-remove-button:hover {
+  background: rgba(212, 175, 55, 0.3);
+  color: #FFD700;
+}
+
+.cart-total {
+  margin-top: 15px;
+  padding: 10px;
+  background: rgba(156, 81, 27, 0.7);
+  border: 1px solid #D4AF37;
+  border-radius: 4px;
+  text-align: center;
+  font-size: 18px;
+  font-weight: bold;
+  color: #FFD700;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.cart-buy-button {
+  width: 100%;
+  margin-top: 15px;
+  padding: 12px;
+  background: rgba(156, 81, 27, 0.7);
+  border: 2px solid #D4AF37;
+  border-radius: 4px;
+  color: #FFD700;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+}
+
+.cart-buy-button:hover {
+  background: rgba(212, 175, 55, 0.3);
+  transform: translateY(-1px);
+}
+
+.cart-buy-button:active {
+  transform: translateY(0);
 }
