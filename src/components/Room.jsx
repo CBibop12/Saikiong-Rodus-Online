@@ -387,7 +387,10 @@ const Room = () => {
                     return { ...prev, participants };
                 });
                 console.log('user', user);
-                setUser(user);
+                // Обновляем локального пользователя только если данные пришли
+                if (user) {
+                    setUser(user);
+                }
                 break;
             }
             case 'CHARACTER_PICK_REJECTED': {
