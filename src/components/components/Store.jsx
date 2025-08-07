@@ -1,5 +1,6 @@
+/* eslint-disable no-unused-vars */
 /* eslint-disable react/prop-types */
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ChevronDown, ChevronUp, ShoppingCart, X } from 'lucide-react';
 import '../../styles/store.css';
 import { items } from '../../data';

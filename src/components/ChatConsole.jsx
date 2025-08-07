@@ -3343,7 +3343,6 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         setCountdownProgress(0);
       }
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchState, teamTurn, matchState?.teams?.[teamTurn]?.remain?.moves, matchState?.teams?.[teamTurn]?.remain?.actions]);
 
   // Обновляем визуальный прогресс таймера
