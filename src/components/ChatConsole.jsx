@@ -1632,7 +1632,6 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
               setFreeCells(cellsData.freeCells);
             }
           }
-          updateMatchState()
         }
         else {
           setClickedEffectOnPanel(null);
@@ -1753,6 +1752,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                 }
               }
               let object = matchState.objectsOnMap.find(obj => obj.position === coordinates)
+              updateMatchState();
               if (!result.isDestroyed) {
                 setDynamicTooltip({
                   coordinates,
@@ -1871,6 +1871,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
               matchState.status = "red_base_destroyed"
             }
             matchState.teams[teamTurn].remain.actions -= 1
+            updateMatchState();
             setPendingMode(null)
             setAttackableCells([])
           }
@@ -2272,6 +2273,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     } else {
       setPendingMode(null);
     }
+    updateMatchState();
   }
 
   const confirmZoneEffect = () => {
