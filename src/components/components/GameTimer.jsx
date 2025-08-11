@@ -5,15 +5,14 @@ export default function GameTimer({ gameTime }) {
   const [elapsed, setElapsed] = useState("0:00:00");
 
   useEffect(() => {
-    if (gameTime.isPaused) return;
-
+    // Тикер даже на паузе, но показывает зафиксированное время
     const id = setInterval(() => {
       const now = Date.now();
       const paused =
-        gameTime.pausedTime +
-        (gameTime.pauseStartTime ? now - gameTime.pauseStartTime : 0);
+        (gameTime?.pausedTime || 0) +
+        (gameTime?.pauseStartTime && gameTime?.isPaused ? now - gameTime.pauseStartTime : 0);
 
-      const ms = now - gameTime.startTime - paused;
+      const ms = Math.max(0, (now - (gameTime?.startTime || Date.now())) - paused);
       const h  = Math.floor(ms / 3_600_000);
       const m  = Math.floor(ms / 60_000) % 60;
       const s  = Math.floor(ms / 1_000) % 60;
@@ -22,7 +21,7 @@ export default function GameTimer({ gameTime }) {
     }, 1_000);
 
     return () => clearInterval(id);
-  }, [gameTime]);
+  }, [gameTime?.isPaused, gameTime?.pausedTime, gameTime?.pauseStartTime, gameTime?.startTime]);
 
   return (
     <div className="time-container">

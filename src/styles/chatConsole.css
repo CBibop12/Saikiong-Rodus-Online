@@ -1821,16 +1821,161 @@ justify-content: center;
   background: rgba(0, 0, 0, 0.7);
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start; /* изменяем на flex-start */
   z-index: 2000;
   backdrop-filter: blur(5px);
+  padding: 20px; /* добавляем отступы для мобильных устройств */
+  box-sizing: border-box;
+  overflow-y: auto; /* добавляем скролл если нужно */
 }
 
-.pause-modal {
-  padding: 2rem;
-  width: 600px;
-  max-width: 90vw;
+/* Убираем псевдоэлементы */
+/* .pause-modal-overlay::before и ::after удалены */
+
+/* Новые стили для широкой модалки с чатом */
+.pause-modal-wide {
+  display: flex;
+  width: 90vw;
+  max-width: 1200px;
+  height: 80vh;
+  max-height: 800px;
+  min-height: 600px; /* минимальная высота для предотвращения схлопывания */
+  background: linear-gradient(to bottom, rgb(118, 66, 28), rgb(64, 40, 15));
+  border: 2px solid #D4AF37;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  position: relative; /* фиксируем позиционирование */
+  margin: auto 0; /* центрируем по вертикали */
+  flex-shrink: 0; /* предотвращаем сжатие */
+}
+
+.pause-modal-content {
+  flex: 1;
+  padding: 2rem;
+  overflow-y: auto;
+}
+
+.pause-modal-chat {
+  width: 320px;
+  border-left: 2px solid #D4AF37;
+  background: rgba(0, 0, 0, 0.2);
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+}
+
+.pause-modal-chat .sr-room-chat {
+  width: 100%;
+  height: 100%;
+  border: none;
+  background: transparent;
+}
+
+.pause-modal-chat .sr-room-chat__messages {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 8px 8px 0 0;
+  overflow-y: auto;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px;
+}
+
+.pause-modal-chat .sr-room-chat__message {
+  background-color: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.2);
+  margin-bottom: 8px;
+}
+
+.pause-modal-chat .sr-room-chat__message.self {
+  background-color: rgba(212, 175, 55, 0.2);
+  border-color: rgba(212, 175, 55, 0.4);
+}
+
+.pause-modal-chat .sr-room-chat__author {
+  color: #D4AF37;
+  font-weight: bold;
+}
+
+.pause-modal-chat .sr-room-chat__text {
+  color: #fff;
+}
+
+.pause-modal-chat .sr-room-chat__input {
+  border-top: 2px solid #D4AF37;
+  height: 40px; /* фиксированная высота панели ввода */
+  display: flex;
+  align-items: center;
+}
+
+.pause-modal-chat .sr-room-chat__field {
+  background: transparent;
+  color: #fff;
+  border-radius: 4px;
+  margin: 0 8px;
+  padding: 0 12px;
+  height: 36px;
+  font-size: 14px;
+  font-family: 'Arial', sans-serif;
+  line-height: 20px;
+}
+
+.pause-modal-chat .sr-room-chat__field:focus {
+  outline: none;
+}
+
+.pause-modal-chat .sr-room-chat__field::placeholder {
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.pause-modal-chat .sr-room-chat__send {
+  background: #D4AF37;
+  color: #000;
+  margin: 0 1px;
+  padding: 0 16px;
+  height: 36px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.pause-modal-chat .sr-room-chat__send:hover {
+  background: #D4AF37;
+  color: white;
+}
+
+/* Заголовок чата в модалке паузы */
+.pause-chat-header {
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border-bottom: 1px solid #D4AF37;
+}
+
+.pause-chat-header h3 {
+  color: #D4AF37;
+  font-size: 1.2rem;
+  margin: 0;
+  text-align: center;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 768px) {
+  .pause-modal-wide {
+    flex-direction: column;
+    width: 95vw;
+    height: 90vh;
+  }
+  
+  .pause-modal-chat {
+    width: 100%;
+    height: 300px;
+    border-left: none;
+    border-top: 2px solid #D4AF37;
+  }
+  
+  .pause-modal-content {
+    overflow-y: auto;
+  }
 }
 
 .pause-modal h2 {

@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export const useRoomSocket = (roomCode, onEvent) => {
     const wsRef = useRef(null);
@@ -8,6 +8,9 @@ export const useRoomSocket = (roomCode, onEvent) => {
     const retryAttemptRef = useRef(0);
     const roomCodeRef = useRef(roomCode);
     const onEventRef = useRef(onEvent);
+
+    const [isOpen, setIsOpen] = useState(false);
+    const pendingQueueRef = useRef([]); // очередь для сообщений, отправляемых до открытия
 
     onEventRef.current = onEvent;
     roomCodeRef.current = roomCode;
@@ -25,6 +28,7 @@ export const useRoomSocket = (roomCode, onEvent) => {
             try { wsRef.current.close(); } catch { /* noop */ }
             wsRef.current = null;
         }
+        setIsOpen(false);
     };
 
     const scheduleReconnect = () => {
@@ -36,6 +40,15 @@ export const useRoomSocket = (roomCode, onEvent) => {
         reconnectTimeoutRef.current = setTimeout(() => {
             connect();
         }, delay);
+    };
+
+    const flushQueue = () => {
+        const socket = wsRef.current;
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        while (pendingQueueRef.current.length > 0) {
+            const msg = pendingQueueRef.current.shift();
+            socket.send(JSON.stringify(msg));
+        }
     };
 
     const connect = () => {
@@ -51,6 +64,7 @@ export const useRoomSocket = (roomCode, onEvent) => {
         socket.onopen = () => {
             console.info('🔌 Room WebSocket открыт');
             retryAttemptRef.current = 0; // сбрасываем счётчик попыток
+            setIsOpen(true);
             // heartbeat каждые 25 сек
             clearPing();
             pingIntervalRef.current = setInterval(() => {
@@ -58,6 +72,8 @@ export const useRoomSocket = (roomCode, onEvent) => {
                     socket.send(JSON.stringify({ type: 'PING' }));
                 }
             }, 25000);
+            // отправляем всё, что скопилось до открытия
+            flushQueue();
         };
 
         socket.onmessage = (e) => {
@@ -77,6 +93,7 @@ export const useRoomSocket = (roomCode, onEvent) => {
         socket.onclose = () => {
             console.info('🔌 Room WebSocket закрыт');
             clearPing();
+            setIsOpen(false);
             scheduleReconnect();
         };
     };
@@ -91,9 +108,12 @@ export const useRoomSocket = (roomCode, onEvent) => {
 
     const emit = (type, payload) => {
         const socket = wsRef.current;
+        const message = payload === undefined ? { type } : { type, payload };
         if (socket && socket.readyState === WebSocket.OPEN) {
-            const message = payload === undefined ? { type } : { type, payload };
             socket.send(JSON.stringify(message));
+        } else {
+            // накапливаем команду, чтобы отправить сразу после открытия
+            pendingQueueRef.current.push(message);
         }
     };
 
@@ -102,5 +122,5 @@ export const useRoomSocket = (roomCode, onEvent) => {
         cleanupSocket();
     };
 
-    return { emit, close };
+    return { emit, close, isOpen };
 }; 
