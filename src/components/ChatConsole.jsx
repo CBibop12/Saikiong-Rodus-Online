@@ -1441,8 +1441,10 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     if (idx !== -1) {
       console.log('coordinates', coordinates);
       teamArr[idx].position = coordinates;
-      // Движение через портал (freeCells) не расходует ход
-      if (!freeCells.includes(coordinates)) {
+      // Движение через портал не тратит ход ТОЛЬКО если ИЗНАЧАЛЬНО стояли на портале
+      const wasOnPortal = isCharacterOnPortal(selectedCharacter.position);
+      const isFreePortalMove = wasOnPortal && freeCells.includes(coordinates);
+      if (!isFreePortalMove) {
         nextState.teams[selectedCharacter.team].remain.moves -= 1;
       }
     }
