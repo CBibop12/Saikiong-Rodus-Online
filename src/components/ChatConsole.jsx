@@ -1309,9 +1309,6 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       }
     }
 
-    if (results[0].hpDamage > 0) {
-      selectedCharacter.currentHP += Math.max(selectedCharacter.currentHP, selectedCharacter.currentHP + selectedCharacter.advancedSettings.vampirism)
-    }
     if (results[0].currentHP === 0) {
       console.log("Character killed", character);
       matchState.teams[selectedCharacter.team].gold += 500;
