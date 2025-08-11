@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BarChart2, ArrowRight } from 'lucide-react';
@@ -74,6 +75,9 @@ const MainMenu = () => {
     }
   };
 
+  const safeUsername = (u) => (u && typeof u.username === 'string' ? u.username : '');
+  const safeEmail = (u) => (u && typeof u.email === 'string' ? u.email : '');
+
   return (
     <div className="landing-container">
       <div className="left-section">
@@ -86,15 +90,15 @@ const MainMenu = () => {
             <div className="user-profile-card">
               <div className="user-avatar">
                 {user.avatar ? (
-                  <img src={user.avatar} alt={`${user.username} avatar`} />
+                  <img src={user.avatar} alt={`${safeUsername(user)} avatar`} />
                 ) : (
-                  String(user.username).charAt(0).toUpperCase()
+                  String(safeUsername(user)).charAt(0).toUpperCase()
                 )}
               </div>
               <div className="user-details">
-                <div className="user-name">{String(user.username)}</div>
-                {user.email && typeof user.email === 'string' && (
-                  <div className="user-email">{user.email}</div>
+                <div className="user-name">{String(safeUsername(user))}</div>
+                {safeEmail(user) && (
+                  <div className="user-email">{safeEmail(user)}</div>
                 )}
               </div>
               <a
@@ -118,26 +122,26 @@ const MainMenu = () => {
         {user && user.rooms.length > 0 && (
           <div className="rooms-container">
             <h2>Комнаты в которых вы участвуете:</h2>
-          <ul className="rooms-list">
-            {user?.rooms?.map((room) => (
-              <div key={room.roomCode} className="room-card">
-                <div className="room-card-header">
-                  <h3>{room.roomCode}</h3>
-                  <h4>{room.roleInRoom}</h4>
+            <ul className="rooms-list">
+              {user?.rooms?.map((room) => (
+                <div key={room.roomCode} className="room-card">
+                  <div className="room-card-header">
+                    <h3>{room.roomCode}</h3>
+                    <h4>{room.roleInRoom}</h4>
+                  </div>
+                  <button className="menu-button join-button" onClick={() => handleJoinRoom(room)}>
+                    <ArrowRight size={24} />
+                  </button>
                 </div>
-                <button className="menu-button join-button" onClick={() => handleJoinRoom(room)}>
-                  <ArrowRight size={24} />
-                </button>
-              </div>
-            ))}
-            {user?.rooms?.length === 0 && (
-              <div className="room-card">
-                <h3>Пример комнаты</h3>
-                <p>Описание комнаты</p>
-                <button className="menu-button join-button" onClick={() => handleJoinRoom('123')}>
-                  <ArrowRight size={24} />
-                  Перейти в комнату
-                </button>
+              ))}
+              {user?.rooms?.length === 0 && (
+                <div className="room-card">
+                  <h3>Пример комнаты</h3>
+                  <p>Описание комнаты</p>
+                  <button className="menu-button join-button" onClick={() => handleJoinRoom('123')}>
+                    <ArrowRight size={24} />
+                    Перейти в комнату
+                  </button>
                 </div>
               )}
             </ul>

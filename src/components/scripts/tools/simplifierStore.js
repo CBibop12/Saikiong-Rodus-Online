@@ -16,11 +16,13 @@ export function generateId() {
 }
 
 export const isItMyTurn = (user, room, teamTurn) => {
-    console.log('room', room);
-    console.log('teamTurn', teamTurn);
-    console.log('user', user);
-    console.log('room.matchState.teams[teamTurn].player', room.matchState.teams[teamTurn].player);
-    console.log('user.username', user.username);
-    console.log('room.matchState.teams[teamTurn].player === user.username', room.matchState.teams[teamTurn].player === user.username);
-    return room.matchState.teams[teamTurn].player === user.username
+    try {
+        const username = user && typeof user === 'object' ? user.username : undefined;
+        if (!username) return false;
+        const teams = room && room.matchState && room.matchState.teams ? room.matchState.teams : undefined;
+        if (!teams || !teamTurn || !teams[teamTurn]) return false;
+        return teams[teamTurn].player === username;
+    } catch {
+        return false;
+    }
 }
