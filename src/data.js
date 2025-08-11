@@ -3251,12 +3251,14 @@ export const items = [
         "В инвентаре одного персонажа, может находиться не более одного Философского камня.",
     },
     onWear: (character) => {
+      character.stats.HP += 100;
       character.currentMana += 250;
-      character.currentHP += 100;
+      character.currentHP = Math.min(character.currentHP + 100, character.stats.HP);
     },
     onRemove: (character) => {
+      character.stats.HP = Math.max(character.stats.HP - 100, 0);
       character.currentMana -= 250;
-      character.currentHP -= 100;
+      character.currentHP = Math.min(character.currentHP, character.stats.HP);
     },
   },
   {
@@ -3784,8 +3786,7 @@ export const items = [
       range: 3,
       zoneColor: "rgb(76, 248, 243)",
       affiliation: "negative only",
-      effect: (affectedCharacters) => {
-      },
+      effect: () => { },
     },
     description:
       "Атака: Урон: 100*3 Тип: область Радиус: 2 клетки Длительность: 3 хода/6 ходов. Дальность: дальность персонажа. Описание: При использовании выкидывается на дальность персонажа и на 6 ходов создаёт ядовитую область попав в которую получишь необратимый эффект яда, наносящий 100 урона/ход в течении 3 ходов. Примечание: не работает на летающие объекты. Примечание 2: однажды получивший урон от зелья отравления персонаж, получает иммунитет от этого зелья до конца игры (при воскрешении или перерождении - сбрасывается)",
@@ -3919,8 +3920,7 @@ export const items = [
       range: 3,
       zoneColor: "rgb(76, 248, 243)",
       affiliation: "negative only",
-      effect: (affectedCharacters) => {
-      },
+      effect: () => { },
     },
     type: "item",
     description:

@@ -815,6 +815,37 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
   // ─────────────────────────────────────────────
 
+  // КЛИЕНТСКОЕ применение diff к объекту состояния
+  const applyDiffLocal = (targetObj, changes) => {
+    const result = targetObj;
+    for (const [path, change] of Object.entries(changes || {})) {
+      const keys = path.split('.');
+      let current = result;
+      for (let i = 0; i < keys.length - 1; i++) {
+        const key = keys[i];
+        if (!(key in current) || typeof current[key] !== 'object' || current[key] === null) {
+          current[key] = {};
+        }
+        current = current[key];
+      }
+      const finalKey = keys[keys.length - 1];
+      switch (change.type) {
+        case 'added':
+        case 'changed':
+          current[finalKey] = change.value !== undefined ? change.value : change.newValue;
+          break;
+        case 'deleted':
+          delete current[finalKey];
+          break;
+        default:
+          break;
+      }
+    }
+    return result;
+  };
+
+  // ─────────────────────────────────────────────
+
   // Функция для отправки diff через веб-сокет
   const sendMatchStateDiff = (diff) => {
     if (Object.keys(diff).length === 0) return;
@@ -947,9 +978,13 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     type = "system",
     commandType = selectedAction
   ) => {
+    const now = Date.now();
+    const gt = matchState?.gameTime || { startTime: gameStartTime, pausedTime: 0, pauseStartTime: null };
+    const paused = gt.pausedTime + (gt.pauseStartTime ? (now - gt.pauseStartTime) : 0);
+    const elapsedMs = now - (gt.startTime || gameStartTime) - paused;
     const newMsg = {
       text,
-      timestamp: formatElapsedTime(Date.now() - gameStartTime),
+      timestamp: formatElapsedTime(Math.max(0, elapsedMs)),
       messageType: type,
       actionType: type === "system" ? `Система / ${commandType}` : commandType,
       turn: matchState.turn,
@@ -1274,9 +1309,6 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       }
     }
 
-    if (results[0].hpDamage > 0) {
-      selectedCharacter.currentHP += Math.max(selectedCharacter.currentHP, selectedCharacter.currentHP + selectedCharacter.advancedSettings.vampirism)
-    }
     if (results[0].currentHP === 0) {
       console.log("Character killed", character);
       matchState.teams[selectedCharacter.team].gold += 500;
@@ -1441,8 +1473,10 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     if (idx !== -1) {
       console.log('coordinates', coordinates);
       teamArr[idx].position = coordinates;
-      // Движение через портал (freeCells) не расходует ход
-      if (!freeCells.includes(coordinates)) {
+      // Движение через портал не тратит ход ТОЛЬКО если ИЗНАЧАЛЬНО стояли на портале
+      const wasOnPortal = isCharacterOnPortal(selectedCharacter.position);
+      const isFreePortalMove = wasOnPortal && freeCells.includes(coordinates);
+      if (!isFreePortalMove) {
         nextState.teams[selectedCharacter.team].remain.moves -= 1;
       }
     }
@@ -1632,7 +1666,6 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
               setFreeCells(cellsData.freeCells);
             }
           }
-          updateMatchState()
         }
         else {
           setClickedEffectOnPanel(null);
@@ -1753,6 +1786,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                 }
               }
               let object = matchState.objectsOnMap.find(obj => obj.position === coordinates)
+              updateMatchState();
               if (!result.isDestroyed) {
                 setDynamicTooltip({
                   coordinates,
@@ -1871,6 +1905,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
               matchState.status = "red_base_destroyed"
             }
             matchState.teams[teamTurn].remain.actions -= 1
+            updateMatchState();
             setPendingMode(null)
             setAttackableCells([])
           }
@@ -2272,6 +2307,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     } else {
       setPendingMode(null);
     }
+    updateMatchState();
   }
 
   const confirmZoneEffect = () => {
@@ -2889,15 +2925,21 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       gameTime: {
         ...matchState.gameTime,
         isPaused: true,
-        pauseStartTime: Date.now()
+        pauseStartTime: Date.now(),
+        pausedBy: user?.username || initialUser?.username || null,
       }
     };
-    setMatchState(updatedMatchState);
-    setIsPaused(true);
+    // Отправляем как полное обновление, чтобы гарантировать синхронизацию
+    updateMatchState(updatedMatchState, 'full');
   };
 
   // Функция для продолжения игры после паузы
   const handleResume = () => {
+    const pausedBy = matchState?.gameTime?.pausedBy;
+    const me = user?.username || initialUser?.username;
+    // Разрешаем продолжить только инициатору
+    if (pausedBy && pausedBy !== me) return;
+
     if (matchState.gameTime.pauseStartTime) {
       const currentPauseDuration = Date.now() - matchState.gameTime.pauseStartTime;
       const updatedMatchState = {
@@ -2906,12 +2948,12 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           ...matchState.gameTime,
           isPaused: false,
           pausedTime: matchState.gameTime.pausedTime + currentPauseDuration,
-          pauseStartTime: null
+          pauseStartTime: null,
+          pausedBy: null,
         }
       };
-      setMatchState(updatedMatchState);
+      updateMatchState(updatedMatchState, 'full');
     }
-    setIsPaused(false);
   };
 
   // Функция для загрузки текущего состояния матча в формате JSON
@@ -3415,6 +3457,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   // Обновляем визуальный прогресс таймера
   useEffect(() => {
     if (!autoEndTimer) return;
+    if (matchState?.gameTime?.isPaused) return; // не обновляем прогресс во время паузы
 
     const interval = setInterval(() => {
       const elapsed = Date.now() - autoEndTimer.start;
@@ -3423,7 +3466,16 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     }, 100);
 
     return () => clearInterval(interval);
-  }, [autoEndTimer]);
+  }, [autoEndTimer, matchState?.gameTime?.isPaused]);
+
+  // Во время паузы отменяем автозавершение хода
+  useEffect(() => {
+    if (matchState?.gameTime?.isPaused && autoEndTimer) {
+      clearTimeout(autoEndTimer.id);
+      setAutoEndTimer(null);
+      setCountdownProgress(0);
+    }
+  }, [matchState?.gameTime?.isPaused]);
 
   const isLoading = !matchState || !selectedMap;
 
@@ -3451,6 +3503,45 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     },
   };
   // >>> END WS ADAPTER <<<
+
+  // Подписки на серверные события состояния
+  useEffect(() => {
+    if (!gameSocket) return;
+
+    const onDiff = (payload) => {
+      const diff = payload?.diff || payload?.changes || {};
+      if (!diff || Object.keys(diff).length === 0) return;
+      setMatchState((prev) => {
+        const next = deepClone(prev);
+        applyDiffLocal(next, diff);
+        return next;
+      });
+      setMatchStateCheckpoint((prev) => {
+        const next = deepClone(prev);
+        applyDiffLocal(next, diff);
+        return next;
+      });
+    };
+
+    const onUpdated = (state) => {
+      if (!state) return;
+      setMatchState(state);
+      setMatchStateCheckpoint(deepClone(state));
+    };
+
+    gameSocket.on('MATCH_STATE_DIFF', onDiff);
+    gameSocket.on('MATCH_STATE_UPDATED', onUpdated);
+
+    return () => {
+      gameSocket.off('MATCH_STATE_DIFF', onDiff);
+      gameSocket.off('MATCH_STATE_UPDATED', onUpdated);
+    };
+  }, [gameSocket]);
+
+  // Синхронизация локального флага с общим состоянием игры
+  useEffect(() => {
+    setIsPaused(!!matchState?.gameTime?.isPaused);
+  }, [matchState?.gameTime?.isPaused]);
 
   // Показываем экран загрузки, если состояние игры ещё не получено
   if (isLoading) {
@@ -3489,6 +3580,10 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       <PauseModal
         isPaused={isPaused}
         matchState={matchState}
+        pausedBy={matchState?.gameTime?.pausedBy || null}
+        currentUser={user || initialUser}
+        roomCode={roomCode}
+        canResume={!matchState?.gameTime?.pausedBy || (matchState?.gameTime?.pausedBy === (user?.username || initialUser?.username))}
         onResume={handleResume}
         handleDownloadCurrentMatch={handleDownloadCurrentMatch}
         handleDownloadAllMatches={handleDownloadAllMatches}

@@ -149,7 +149,7 @@ const Store = ({ matchState, character, storeType, onClose, onBuy, selectedMap, 
               </div>
               {expandedItems[item.name] && (
                 <div className="item-description">
-                  {item.shopType === "Лаборатория" || item.shopType === "Оружейная" && (
+                  {(item.shopType === "Лаборатория" || item.shopType === "Оружейная") && (
                     item.description
                   )}
                   {item.shopType === "Магический" && (
