@@ -23,19 +23,19 @@
 }
 
 .game-console.pixieFields {
-  background-image: url('..https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/pixiefields.jpg');
+  background-image: url('https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/pixiefields.jpg');
   background-size: cover;
   background-position: center;
 }
 
 .game-console.ilmarinFortress {
-  background-image: url('..https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/ilmarinfortress.png');
+  background-image: url('https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/ilmarinfortress.png');
   background-size: cover;
   background-position: center;
 }
 
 .game-console.hochgakVillage {
-  background-image: url('..https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/derevnyahachgok.jpg');
+  background-image: url('https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/derevnyahachgok.jpg');
   background-size: cover;
   background-position: center;
 }

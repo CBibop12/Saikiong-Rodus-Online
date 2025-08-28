@@ -1,6 +1,6 @@
 // pages/RulesPage.jsx
 import React, { useState, useEffect } from 'react';
-import { rulesText } from '..https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/rules'
+import { rulesText } from '../assets/rules.txt'
 import "../styles/rulesStyle.css"
 
 const RulesPage = () => {
