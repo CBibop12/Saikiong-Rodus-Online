@@ -1098,31 +1098,31 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       case "red base":
         buildingPart = getBuildingPart("red base");
         if (buildingPart) {
-          largeBuildingImage = `/assets/cells/red-base-${buildingPart}.png`;
+          largeBuildingImage = `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/cells/red-base-${buildingPart}.png`;
         }
         break;
       case "blue base":
         buildingPart = getBuildingPart("blue base");
         if (buildingPart) {
-          largeBuildingImage = `/assets/cells/blue-base-${buildingPart}.png`;
+          largeBuildingImage = `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/cells/blue-base-${buildingPart}.png`;
         }
         break;
       case "laboratory":
         buildingPart = getBuildingPart("laboratory");
         if (buildingPart) {
-          largeBuildingImage = `/assets/cells/lab-${buildingPart}.png`;
+          largeBuildingImage = `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/cells/lab-${buildingPart}.png`;
         }
         break;
       case "magic shop":
         buildingPart = getBuildingPart("magic shop");
         if (buildingPart) {
-          largeBuildingImage = `/assets/cells/magic-store-${buildingPart}.png`;
+          largeBuildingImage = `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/cells/magic-store-${buildingPart}.png`;
         }
         break;
       case "armory":
         buildingPart = getBuildingPart("armory");
         if (buildingPart) {
-          largeBuildingImage = `/assets/cells/armory-${buildingPart}.png`;
+          largeBuildingImage = `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/cells/armory-${buildingPart}.png`;
         }
         break;
     }
@@ -1132,7 +1132,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         {character && (
           <div className="positioned-character">
             <img
-              src={`/assets/characters/${character.image}`}
+              src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${character.image}`}
               alt={character.name}
               className={`character-image ${character.team === "red" ? 'red-team' : 'blue-team'}`}
             />
@@ -1141,7 +1141,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         {object && (
           <div className="positioned-object">
             <img
-              src={`/assets/items/${object.image}`}
+              src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/items/${object.image}`}
               alt={object.name}
               className={`object-image`}
             />
@@ -1150,7 +1150,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         {building &&
           <div className="positioned-object">
             <img
-              src={`/assets/cells/${building.image}`}
+              src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/cells/${building.image}`}
               className="object-image building-image"
             />
           </div>
@@ -2745,7 +2745,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       }}
     >
       <img
-        src={`/assets/characters/${char.image}`}
+        src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${char.image}`}
         alt={char.name}
         style={{
           transform: team === "blue" ? "scaleX(-1)" : "none",
@@ -2866,7 +2866,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                 {renderCell(cell, rowIndex, colIndex)}
                 {isAttackAnimation && (
                   <div className="attack-animation">
-                    <img src={`./assets/gifs/${getAttackName(isAttackAnimation.damageType)}.gif`} />
+                    <img src={`.https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/gifs/${getAttackName(isAttackAnimation.damageType)}.gif`} />
                   </div>
                 )}
                 {redChar && renderCharacterIcon(redChar, "red")}
@@ -4146,7 +4146,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         {dynamicTooltip && (
           <div className="dynamic-tooltip">
             <div className="dynamic-tooltip-image-container">
-              <img src={`./assets/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
+              <img src={`.https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
             </div>
             <h5 className="dynamic-tooltip-title">{dynamicTooltip.title}</h5>
             {dynamicTooltip.parameters &&

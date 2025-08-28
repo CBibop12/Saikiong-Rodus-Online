@@ -303,7 +303,7 @@ const CharacterModal = ({ character, onClose }) => {
     // Проверяем наличие свойства image у персонажа
     if (character.image) {
       // Используем имя файла из свойства image
-      return `/assets/characters/${character.image}`;
+      return `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${character.image}`;
     }
     // Заглушка, если изображение не указано
     return null;
@@ -428,8 +428,8 @@ const CharacterModal = ({ character, onClose }) => {
                       character.advancedSettings.damageType === "физический"
                         ? "#f97316"
                         : character.advancedSettings.damageType === "магический"
-                        ? "#8b5cf6"
-                        : "#e5e7eb",
+                          ? "#8b5cf6"
+                          : "#e5e7eb",
                   }}
                 >
                   {character.advancedSettings.damageType}
@@ -505,9 +505,8 @@ const CharacterModal = ({ character, onClose }) => {
                   style={{
                     height: "100%",
                     borderRadius: "4px",
-                    width: `${
-                      (character.currentHP / (character.stats.HP || 1)) * 100
-                    }%`,
+                    width: `${(character.currentHP / (character.stats.HP || 1)) * 100
+                      }%`,
                     backgroundColor:
                       character.currentHP < (character.stats.HP || 1) * 0.3
                         ? "#ef4444"
@@ -601,36 +600,36 @@ const CharacterModal = ({ character, onClose }) => {
 
             {/* Effects */}
             {character.effects?.length > 0 && (
-            <div className="effects-section" style={{ marginTop: 16 }}>
-              <h4 style={{ color: "#fff", marginBottom: 8 }}>Эффекты</h4>
+              <div className="effects-section" style={{ marginTop: 16 }}>
+                <h4 style={{ color: "#fff", marginBottom: 8 }}>Эффекты</h4>
 
-              <div className="effects-list" style={{ display: "flex", flexDirection: "column" }}>
-                {character.effects.map((effect, index) => (
-                  <div
-                    key={index}
-                    className="effect-item"
-                    style={getEffectStyle(effect)}   /* фон/бордер по типу */
-                  >
-                    {/* строка с иконкой, названием и ходами */}
-                    <div className="effect-header">
-                      <span className="effect-icon">{getEffectIcon(effect.effectType)}</span>
-                      <span className="effect-name">{effect.name}</span>
-                      {effect.turnsRemain !== undefined && (
-                        <span className="effect-turns">({effect.turnsRemain})</span>
+                <div className="effects-list" style={{ display: "flex", flexDirection: "column" }}>
+                  {character.effects.map((effect, index) => (
+                    <div
+                      key={index}
+                      className="effect-item"
+                      style={getEffectStyle(effect)}   /* фон/бордер по типу */
+                    >
+                      {/* строка с иконкой, названием и ходами */}
+                      <div className="effect-header">
+                        <span className="effect-icon">{getEffectIcon(effect.effectType)}</span>
+                        <span className="effect-name">{effect.name}</span>
+                        {effect.turnsRemain !== undefined && (
+                          <span className="effect-turns">({effect.turnsRemain})</span>
+                        )}
+                      </div>
+
+                      {/* Описание будет раскрываться/скрываться по ховеру */}
+                      {effect.description && (
+                        <div className="effect-description">
+                          {effect.description}
+                        </div>
                       )}
                     </div>
-
-                    {/* Описание будет раскрываться/скрываться по ховеру */}
-                    {effect.description && (
-                      <div className="effect-description">
-                        {effect.description}
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
-            </div>
-          )}
+            )}
             {/* Abilities */}
             {character.abilities && character.abilities.length > 0 && (
               <div

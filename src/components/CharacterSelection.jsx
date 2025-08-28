@@ -188,7 +188,7 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
           </button>
           <div className="character-info-header">
             <img
-              src={`/assets/characters/${selectedCharacter.image}`}
+              src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${selectedCharacter.image}`}
               alt={selectedCharacter.name}
               className="character-info-image"
               style={{
@@ -216,7 +216,7 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
                   <div className="character-info-ability-image">
                     {
                       ability.image && (
-                        <img src={`/assets/abilities/${ability.image}`} alt={abilities[ability.key].name} />
+                        <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/abilities/${ability.image}`} alt={abilities[ability.key].name} />
                       )
                     }
                   </div>
@@ -249,7 +249,7 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
     >
       <div className="character-card-image">
         <img
-          src={`/assets/characters/${char.image}`}
+          src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${char.image}`}
           alt={char.name}
         />
       </div>
@@ -282,7 +282,7 @@ const CharacterDistribution = ({ onDistributionComplete }) => {
         backgroundColor: typeColors[char.type] || "#444",
       }}>
       <div className="character-card-image">
-        <img src={`/assets/characters/${char.image}`} alt={char.name} />
+        <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${char.image}`} alt={char.name} />
       </div>
       <div className="character-card-info">
         <h3>{char.name}</h3>

@@ -113,7 +113,7 @@ const MainMenu = () => {
           ) : null}
         </div>
         <div className="logo-container">
-          <img src="/assets/images/logo.png" alt="Logo" className="logo" />
+          <img src="https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/logo.png" alt="Logo" className="logo" />
           <div className="advice-carousel" onClick={() => changeAdvice()}>
             <h1>Добро пожаловать в игру</h1>
             <div id="advice-text" className="advice-text">{advices[adviceElement]}</div>

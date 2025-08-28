@@ -62,7 +62,7 @@ const WorldMapSelection = ({ room, user, emitRoomEvent }) => {
             <div className="world-map-wrapper">
                 <div className="world-map-background">
                     <div className="world-map-image-container">
-                        <img src="/assets/images/worldmap.jpg" alt="Карта мира" />
+                        <img src="https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/worldmap.jpg" alt="Карта мира" />
 
                         {/* Точки на карте */}
                         {MAP_POINTS.map((point) => {
@@ -114,7 +114,7 @@ const WorldMapSelection = ({ room, user, emitRoomEvent }) => {
                         </div>
 
                         <div className="map-preview-image">
-                            <img src={`/assets/images/${selectedMap.image}`} alt={selectedMap.userName} />
+                            <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/${selectedMap.image}`} alt={selectedMap.userName} />
                         </div>
 
                         <div className="map-preview-actions">

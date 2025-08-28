@@ -12,7 +12,7 @@ const TopBar = ({ matchState, elapsedTime, turn }) => {
             title={char.name}
           >
             <img
-              src={`/assets/characters/${char.image}`}
+              src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${char.image}`}
               alt={char.name}
             />
           </div>
@@ -32,7 +32,7 @@ const TopBar = ({ matchState, elapsedTime, turn }) => {
             title={char.name}
           >
             <img
-              src={`/assets/characters/${char.image}`}
+              src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${char.image}`}
               alt={char.name}
             />
           </div>

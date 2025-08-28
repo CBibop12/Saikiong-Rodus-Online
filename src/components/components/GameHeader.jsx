@@ -32,7 +32,7 @@ const GameHeader = ({
                 {redChars.map((character, index) => (
                     <div className="header-character" onClick={() => { if (character.currentHP > 0) onSelectCharacter(character) }} key={index}>
                         <img
-                            src={`/assets/characters/${character.image}`}
+                            src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${character.image}`}
                             alt={character.name}
                             style={{
                                 backgroundColor: "rgba(146, 45, 29, 0.5)",
@@ -46,7 +46,7 @@ const GameHeader = ({
             <div className="characters-array blue">
                 {blueChars.map((character, index) => (
                     <div className="header-character" onClick={() => { if (character.currentHP > 0) onSelectCharacter(character) }} key={index}>
-                        <img src={`/assets/characters/${character.image}`} alt={character.name} style={{ transform: 'scaleX(-1)', backgroundColor: "rgba(32, 99, 119, 0.5)" }} />
+                        <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${character.image}`} alt={character.name} style={{ transform: 'scaleX(-1)', backgroundColor: "rgba(32, 99, 119, 0.5)" }} />
                     </div>
                 ))}
             </div>

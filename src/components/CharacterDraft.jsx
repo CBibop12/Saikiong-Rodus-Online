@@ -111,7 +111,7 @@ const CharacterDraft = ({ room, user, emitRoomEvent, onDraftFinished, onShowInfo
                     </button>
                     <div className="character-info-header">
                         <img
-                            src={`/assets/characters/${selectedCharacter.image}`}
+                            src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${selectedCharacter.image}`}
                             alt={selectedCharacter.name}
                             className="character-info-image"
                             style={{
@@ -138,7 +138,7 @@ const CharacterDraft = ({ room, user, emitRoomEvent, onDraftFinished, onShowInfo
                                 <div key={index} className="ability">
                                     <div className="character-info-ability-image">
                                         {ability.image && (
-                                            <img src={`/assets/abilities/${ability.image}`} alt={abilities[ability.key].name} />
+                                            <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/abilities/${ability.image}`} alt={abilities[ability.key].name} />
                                         )}
                                     </div>
                                     <div className="character-info-ability-info">
@@ -182,7 +182,7 @@ const CharacterDraft = ({ room, user, emitRoomEvent, onDraftFinished, onShowInfo
                                     if (charId) emitRoomEvent('CHARACTER_UNSELECTED', { characterId: charId });
                                 }}
                             >
-                                {char ? <img src={`/assets/characters/${char.image}`} alt={char.name} style={{
+                                {char ? <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${char.image}`} alt={char.name} style={{
                                     backgroundColor: typeColors[char.type] || '#444',
                                 }} /> : null}
                             </div>
@@ -248,7 +248,7 @@ const CharacterDraft = ({ room, user, emitRoomEvent, onDraftFinished, onShowInfo
                                         backgroundColor: typeColors[char.type] || '#444',
                                     }}>
                                         <img
-                                            src={`/assets/characters/${char.image}`}
+                                            src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${char.image}`}
                                             alt={char.name}
                                             onError={(e) => {
                                                 console.log('Ошибка загрузки изображения:', char.image);
@@ -289,7 +289,7 @@ const CharacterDraft = ({ room, user, emitRoomEvent, onDraftFinished, onShowInfo
                         const char = charById[charId];
                         return (
                             <div key={`opp-${idx}`} className="slot opp-slot">
-                                {char ? <img src={`/assets/characters/${char.image}`} alt={char.name} style={{
+                                {char ? <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${char.image}`} alt={char.name} style={{
                                     backgroundColor: typeColors[char.type] || '#444',
                                     transform: 'scaleX(-1)',
                                 }} /> : null}

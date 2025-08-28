@@ -16,7 +16,7 @@ const BaseInfo = ({ inventory, gold, team, player, remain, advancedSettings, tea
             }}>
               {inventory?.[index] ? (
                 <img
-                  src={`/assets/items/${items.find(item => item.name === inventory[index].name)?.image || 'default.png'}`}
+                  src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/items/${items.find(item => item.name === inventory[index].name)?.image || 'default.png'}`}
                   alt={inventory[index].name || 'Предмет'}
                 />
               ) : (
@@ -27,7 +27,7 @@ const BaseInfo = ({ inventory, gold, team, player, remain, advancedSettings, tea
         </div>
         <div className="base-info__gold">
           <div className="base-info__gold-icon">
-            <img src="/assets/images/coin.png" alt="Gold" />
+            <img src="https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/coin.png" alt="Gold" />
           </div>
           <span className="base-info__gold-value">{gold}</span>
         </div>
@@ -39,7 +39,7 @@ const BaseInfo = ({ inventory, gold, team, player, remain, advancedSettings, tea
                   <div key={`move-${index}`} className="base-info__remain-item">
                     <img
                       key={`move-${index}`}
-                      src={`/assets/interfaceIcons/moveIcon.png`}
+                      src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/interfaceIcons/moveIcon.png`}
                       alt="Перемещение"
                       style={{
                         filter: index >= remain.moves ? "grayscale(100%)" : "none",
@@ -54,7 +54,7 @@ const BaseInfo = ({ inventory, gold, team, player, remain, advancedSettings, tea
                   <div key={`action-${index}`} className="base-info__remain-item">
                     <img
                       key={`action-${index}`}
-                      src={`/assets/interfaceIcons/actionIcon.png`}
+                      src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/interfaceIcons/actionIcon.png`}
                       alt="Действие"
                       style={{
                         filter: index >= remain.actions ? "grayscale(100%)" : "none",

@@ -1,13 +1,13 @@
 // pages/RulesPage.jsx
 import React, { useState, useEffect } from 'react';
-import { rulesText } from '../assets/rules'
+import { rulesText } from '..https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/rules'
 import "../styles/rulesStyle.css"
 
 const RulesPage = () => {
-    const [searchQuery, setSearchQuery] = useState('');
-    const [sections, setSections] = useState([]);
-    const [searchResults, setSearchResults] = useState([]); // массив найденных совпадений
-    const [currentMatch, setCurrentMatch] = useState(0); // текущее совпадение
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sections, setSections] = useState([]);
+  const [searchResults, setSearchResults] = useState([]); // массив найденных совпадений
+  const [currentMatch, setCurrentMatch] = useState(0); // текущее совпадение
 
   useEffect(() => {
     // Разбираем текст на секции при первой загрузке компонента
@@ -17,10 +17,10 @@ const RulesPage = () => {
   const parseRules = (text) => {
     let parsedSections = [];
     let currentSection = null;
-  
+
     // Получаем все секции
     const sections = text.match(/<title>(.*?)<\/title>.*?(?=<title>|$)/gs) || [];
-  
+
     sections.forEach(sectionText => {
       // Извлекаем заголовок секции
       const titleMatch = sectionText.match(/<title>(.*?)<\/title>/);
@@ -30,36 +30,36 @@ const RulesPage = () => {
           content: '',
           subsections: []
         };
-  
+
         // Получаем весь текст после заголовка
         let remainingText = sectionText
           .replace(/<title>.*?<\/title>/, '')
           .trim();
-  
+
         // Разбиваем на части по подсекциям
         const subSections = remainingText.split(/<subtitle>/);
-        
+
         // Первая часть - основной контент секции
         currentSection.content = formatText(subSections[0].trim());
-  
+
         // Обрабатываем подсекции
-        for(let i = 1; i < subSections.length; i++) {
+        for (let i = 1; i < subSections.length; i++) {
           const subSectionParts = subSections[i].split('</subtitle>');
-          if(subSectionParts.length === 2) {
+          if (subSectionParts.length === 2) {
             currentSection.subsections.push({
               title: subSectionParts[0].trim(),
               content: formatText(subSectionParts[1].trim())
             });
           }
         }
-  
+
         parsedSections.push(currentSection);
       }
     });
-  
+
     setSections(parsedSections);
   };
-  
+
   // Функция для форматирования текста
   const formatText = (text) => {
     return text
@@ -67,7 +67,7 @@ const RulesPage = () => {
       .map(line => {
         // Добавляем два переноса строки перед маркерами и нумерованными пунктами
         const trimmedLine = line.trim();
-        if (trimmedLine.match(/^(●|○|\d+\.)/) ) {
+        if (trimmedLine.match(/^(●|○|\d+\.)/)) {
           return `\n\n${trimmedLine}`;
         }
         return line;
@@ -111,7 +111,7 @@ const RulesPage = () => {
 
     setSearchResults(results);
     setCurrentMatch(0);
-    
+
     // Прокрутка к первому совпадению
     if (results.length > 0) {
       scrollToMatch(results[0]);
@@ -121,7 +121,7 @@ const RulesPage = () => {
   // Прокрутка к определенному совпадению
   const scrollToMatch = (match) => {
     const element = document.getElementById(
-      match.subsectionIndex !== null 
+      match.subsectionIndex !== null
         ? `section-${match.sectionIndex}-${match.subsectionIndex}`
         : `section-${match.sectionIndex}`
     );
@@ -145,14 +145,14 @@ const RulesPage = () => {
 
   const searchInContent = (query) => {
     if (!query) return sections;
-      
+
     return sections.map(section => {
       const sectionContent = highlightText(section.content, query);
       const matchingSubsections = section.subsections.map(sub => ({
         ...sub,
         content: highlightText(sub.content, query)
       }));
-  
+
       return {
         ...section,
         content: sectionContent,
@@ -165,7 +165,7 @@ const RulesPage = () => {
   return (
     <div className="rules-container">
       <nav className="rules-nav">
-      <div className="search-container">
+        <div className="search-container">
           <div className="search-box">
             {/*Добавь стрелку для выхода на главную страницу*/}
             <button className="back-button" onClick={() => window.location.href = '/'}>
@@ -216,7 +216,7 @@ const RulesPage = () => {
                 {section.title}
               </a>
               {section.subsections.map((sub, subIndex) => (
-                <a 
+                <a
                   key={`${index}-${subIndex}`}
                   href={`#section-${index}-${subIndex}`}
                   className="subsection-link"

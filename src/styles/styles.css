@@ -10,7 +10,7 @@
 
 @font-face {
   font-family: "Opirus Sans";
-  src: url("../assets/fonts/OpirusOpikRegular-RgDv.ttf") format("truetype");
+  src: url("..https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/fonts/OpirusOpikRegular-RgDv.ttf") format("truetype");
 }
 
 body {
@@ -34,7 +34,7 @@ body {
 .landing-container {
   display: flex;
   min-height: 100vh;
-  background-image: url("../assets/images/mainMenu.jpg");
+  background-image: url("..https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/mainMenu.jpg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -726,7 +726,7 @@ body {
 }
 
 .room-background {
-  background-image: url("../assets/images/mainMenu.jpg");
+  background-image: url("..https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/mainMenu.jpg");
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -738,7 +738,7 @@ body {
 }
 
 .positioning-background {
-  background-image: url("../assets/images/characterPosition.png");
+  background-image: url("..https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/characterPosition.png");
 }
 
 .room-background.light {

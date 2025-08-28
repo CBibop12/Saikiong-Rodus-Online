@@ -112,7 +112,7 @@ const Store = ({ matchState, character, storeType, onClose, onBuy, selectedMap, 
             >
               <div className="item-header">
                 <img
-                  src={`/assets/items/${item.image}`}
+                  src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/items/${item.image}`}
                   alt={item.name}
                   className="item-image"
                 />

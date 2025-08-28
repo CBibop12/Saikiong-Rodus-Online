@@ -31,7 +31,7 @@ const MapSelection = ({ maps, onMapSelect }) => {
             <ChevronLeft size={24} color="#D4AF37" />
           </button>
           <div className="map-image">
-            <img src={`/assets/images/${currentMap.image}`} />
+            <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/${currentMap.image}`} />
           </div>
           <button className="nav-button" onClick={handleNextMap}>
             <ChevronRight size={24} color="#D4AF37" />

@@ -570,7 +570,7 @@ const Room = () => {
                         {(room?.participants?.length > 1 && !showSearch) ? (
                             <div className="player-slot second">
                                 <div className="player-avatar">
-                                    <img src={secondPlayer?.avatar || '/assets/images/logo.png'} alt="Аватар" />
+                                    <img src={secondPlayer?.avatar || 'https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/logo.png'} alt="Аватар" />
                                 </div>
                                 <div className="player-info">
                                     <h3>{room?.participants?.find(p => p.role === 'admin' && p.username === secondPlayer?.username) ? 'Создатель' : 'Второй игрок'}</h3>

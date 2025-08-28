@@ -69,7 +69,7 @@ const MapConfirmation = ({ selectedMap, user, room, emitRoomEvent }) => {
                 <div className="selected-map-display">
                     <div className="map-image-large">
                         <img
-                            src={`/assets/images/${selectedMap.image}`}
+                            src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/${selectedMap.image}`}
                             alt={selectedMap.userName}
                         />
                     </div>

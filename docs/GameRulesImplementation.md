@@ -1,6 +1,6 @@
 # Implementation of Saikiong Rodus Board-Game Rules
 
-> This document shows **where exactly in the code** each rule from the official rulebook (file `src/assets/rules.js`) is implemented.
+> This document shows **where exactly in the code** each rule from the official rulebook (file `srchttps://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/rules.js`) is implemented.
 
 ## 1. General Turn Loop
 | Rule | Location in code |
@@ -66,7 +66,7 @@ All effects support the fields `turnsRemain`, `effect` (called each turn) and `c
 * During initialization `MapSelection.jsx` converts symbols into `matchState.cells` objects.
 
 ## 9. Rulebook in the UI
-`Rules.jsx` parses the `<title>` / `<subtitle>` tag markup from `src/assets/rules.js`, builds a navigation menu and provides search with highlighting.
+`Rules.jsx` parses the `<title>` / `<subtitle>` tag markup from `srchttps://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/rules.js`, builds a navigation menu and provides search with highlighting.
 
 ## 10. Extending the Rules
 To add a new rule follow the “declaration + handler” principle:

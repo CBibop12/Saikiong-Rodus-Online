@@ -370,31 +370,31 @@ const CharacterPositioning = ({ teams, selectedMap, room, user, emitRoomEvent })
       case "red base":
         buildingPart = getBuildingPart("red base");
         if (buildingPart) {
-          largeBuildingImage = `/assets/cells/red-base-${buildingPart}.png`;
+          largeBuildingImage = `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/cells/red-base-${buildingPart}.png`;
         }
         break;
       case "blue base":
         buildingPart = getBuildingPart("blue base");
         if (buildingPart) {
-          largeBuildingImage = `/assets/cells/blue-base-${buildingPart}.png`;
+          largeBuildingImage = `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/cells/blue-base-${buildingPart}.png`;
         }
         break;
       case "laboratory":
         buildingPart = getBuildingPart("laboratory");
         if (buildingPart) {
-          largeBuildingImage = `/assets/cells/lab-${buildingPart}.png`;
+          largeBuildingImage = `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/cells/lab-${buildingPart}.png`;
         }
         break;
       case "magic shop":
         buildingPart = getBuildingPart("magic shop");
         if (buildingPart) {
-          largeBuildingImage = `/assets/cells/magic-store-${buildingPart}.png`;
+          largeBuildingImage = `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/cells/magic-store-${buildingPart}.png`;
         }
         break;
       case "armory":
         buildingPart = getBuildingPart("armory");
         if (buildingPart) {
-          largeBuildingImage = `/assets/cells/armory-${buildingPart}.png`;
+          largeBuildingImage = `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/cells/armory-${buildingPart}.png`;
         }
         break;
     }
@@ -404,7 +404,7 @@ const CharacterPositioning = ({ teams, selectedMap, room, user, emitRoomEvent })
         {character && (
           <div className="positioned-character">
             <img
-              src={`/assets/characters/${character.image}`}
+              src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${character.image}`}
               alt={character.name}
               className={`character-image ${character.team === "red" ? 'red-team' : 'blue-team'}`}
             />

@@ -66,7 +66,7 @@ const FortuneWheel = ({ map1, map2, winnerMap, onAnimationComplete }) => {
                         <div className="wheel-section wheel-section-1">
                             <div className="wheel-section-content">
                                 <img
-                                    src={`/assets/images/${map1.image}`}
+                                    src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/${map1.image}`}
                                     alt={map1.userName}
                                     className="wheel-map-image"
                                 />
@@ -76,7 +76,7 @@ const FortuneWheel = ({ map1, map2, winnerMap, onAnimationComplete }) => {
                         <div className="wheel-section wheel-section-2">
                             <div className="wheel-section-content">
                                 <img
-                                    src={`/assets/images/${map2.image}`}
+                                    src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/${map2.image}`}
                                     alt={map2.userName}
                                     className="wheel-map-image"
                                 />
@@ -90,7 +90,7 @@ const FortuneWheel = ({ map1, map2, winnerMap, onAnimationComplete }) => {
                     <div className="competing-map">
                         <h4>Вариант 1</h4>
                         <div className="map-info">
-                            <img src={`/assets/images/${map1.image}`} alt={map1.userName} />
+                            <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/${map1.image}`} alt={map1.userName} />
                             <div>
                                 <p className="map-name">{map1.userName}</p>
                                 <p className="map-details">
@@ -105,7 +105,7 @@ const FortuneWheel = ({ map1, map2, winnerMap, onAnimationComplete }) => {
                     <div className="competing-map">
                         <h4>Вариант 2</h4>
                         <div className="map-info">
-                            <img src={`/assets/images/${map2.image}`} alt={map2.userName} />
+                            <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/${map2.image}`} alt={map2.userName} />
                             <div>
                                 <p className="map-name">{map2.userName}</p>
                                 <p className="map-details">

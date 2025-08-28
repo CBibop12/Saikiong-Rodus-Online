@@ -13,7 +13,7 @@ const Teams = ({
     // Проверяем наличие свойства image у персонажа
     if (character.image) {
       // Используем имя файла из свойства image
-      return `/assets/characters/${character.image}`;
+      return `https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/characters/${character.image}`;
     }
     // Возвращаем null, если изображение не указано
     return null;
