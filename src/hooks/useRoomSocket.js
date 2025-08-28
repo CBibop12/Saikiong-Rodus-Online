@@ -56,8 +56,26 @@ export const useRoomSocket = (roomCode, onEvent) => {
         if (!code) return;
 
         const token = localStorage.getItem('srUserToken');
-        const wsBase = import.meta.env.VITE_WS_BASE || 'wss://sr-game-backend-32667b36f309.herokuapp.com';
-        const socket = new WebSocket(`${wsBase}/rooms/${code}?token=${token}`);
+        let wsBase = import.meta.env.VITE_WS_BASE;
+        if (!wsBase) {
+            const apiBase = import.meta.env.VITE_API_BASE;
+            if (apiBase) {
+                wsBase = apiBase.replace(/^http(s?):/, (_m, s) => (s ? 'wss:' : 'ws:'));
+            }
+        }
+        if (!wsBase) {
+            const { protocol, hostname, host } = window.location;
+            if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                // Явный дев-фоллбек на локальный бэкенд
+                wsBase = 'ws://localhost:4000';
+            } else {
+                const wsProtocol = protocol === 'https:' ? 'wss:' : 'ws:';
+                wsBase = `${wsProtocol}//${host}`;
+            }
+        }
+        const base = wsBase.replace(/\/$/, '');
+        const tokenParam = encodeURIComponent(token || '');
+        const socket = new WebSocket(`${base}/rooms/${code}?token=${tokenParam}`);
 
         wsRef.current = socket;
 

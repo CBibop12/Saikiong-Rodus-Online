@@ -34,7 +34,7 @@ import { startingWalls } from "./scripts/building";
 import ShopDistribution from "./components/ShopDistribution";
 import { updateCreeps } from "./scripts/creaturesStore";
 import { isItMyTurn } from "./scripts/tools/simplifierStore";
-import { findCharacter, findCharacterByPosition, cellHasType, objectOnCell, endTurn } from "../routes";
+import { findCharacter, findCharacterByPosition, cellHasType, objectOnCell, endTurn, getFreeCellLines, getFreeCellsAround } from "../routes";
 import { useRoomSocket } from "../hooks/useRoomSocket";
 
 /**
@@ -701,59 +701,20 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   };
 
   const calculateThrowableCells = async (startCoord, range = 5, mapSize, mode = "throw") => {
-    // Разбор стартовой клетки в формате "col-row" (1-индекс)
+    // Определяем финальный range с учётом режима и «кустов» на старте
     const [startX, startY] = await splitCoord(startCoord, 1);
-    const cols = mapSize[0],
-      rows = mapSize[1];
-
-    // Если персонаж находится в "bush", дальность атаки уменьшается в 2 раза (округляем вверх)
+    const cellType = await initialOfCell([startX, startY], roomCode);
     let effectiveRange = range;
-    if (await initialOfCell([startX, startY], roomCode) === "bush") {
+    if (cellType === "bush") {
       effectiveRange = Math.ceil(range / 2);
     }
 
-    // Массив для хранения координат атакуемых клеток в формате "col-row"
-    const throwable = [];
+    // Доп. правка по режиму: для "putDown" обычно дальность 1
+    const finalRange = mode === "putDown" ? 1 : effectiveRange;
 
-    // Определяем четыре направления атаки: вверх, вправо, вниз, влево
-    const directions = [
-      { dx: 0, dy: -1 },
-      { dx: 1, dy: 0 },
-      { dx: 0, dy: 1 },
-      { dx: -1, dy: 0 },
-    ];
-
-    // Для каждого направления идём клетками до предельного шага effectiveRange
-    for (const { dx, dy } of directions) {
-      for (let step = 1; step <= effectiveRange; step++) {
-        const newX = startX + dx * step;
-        const newY = startY + dy * step;
-
-        // Проверка выхода за границы карты
-        if (newX < 0 || newX >= cols || newY < 0 || newY >= rows) break;
-        // Преобразуем координаты в формат "col-row" (1-индекс)
-        const cellPos = `${newX + 1}-${newY + 1}`;
-
-        let object = await objectOnCell(cellPos, roomCode)
-        let characterOnCell = await findCharacterByPosition(cellPos, roomCode)
-
-        if (!object && !await cellHasType(["laboratory", "armory", "magic shop"], [newX, newY], roomCode)) {
-          if (mode === "throw") {
-            if (!characterOnCell && !await cellHasType(["red base", "blue base"], [newX, newY], roomCode)) {
-              throwable.push(cellPos)
-            }
-          }
-          else if (mode === "putDown") {
-            // выкладывать можно персонажу или базе но после этого дальше идти нельзя
-            throwable.push(cellPos)
-          }
-        } else {
-          break;
-        }
-      }
-    }
-
-    return throwable;
+    // Бэкенд вернёт уже отфильтрованные свободные клетки по прямым направлениям
+    const freeCells = await getFreeCellLines(roomCode, startCoord, finalRange);
+    return freeCells.freeCells;
   }
 
   const calculateBuildingCells = async (startCoord, character, mapSize) => {
@@ -1046,6 +1007,21 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
     updateCells();
   }, [pendingMode, beamSelectionMode, pointSelectionMode, zoneSelectionMode, selectedCharacter, selectedCharacter?.position]);
+
+  // Авто-обновление карточки выбранного персонажа при изменении matchState
+  useEffect(() => {
+    if (!showCharacterInfoPanel || !selectedCharacter || !matchState) return;
+    const teamBucket = matchState.teams?.[selectedCharacter.team];
+    if (!teamBucket) return;
+    const fresh = teamBucket.characters.find((ch) => ch.name === selectedCharacter.name);
+    if (fresh) {
+      setSelectedCharacter(fresh);
+    } else {
+      // Персонаж исчез (например, погиб/удалён) — закрываем панель
+      setSelectedCharacter(null);
+      setShowCharacterInfoPanel(false);
+    }
+  }, [matchState]);
 
   useEffect(() => {
     if (attackAnimations.length > 0) {
@@ -1710,7 +1686,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     else {
       setShowCharacterInfoPanel(true);
       setSelectedCharacter(character);
-      setClickedEffectOnPanel(null);
+      setClickedEffectOnPanel(null)
       if ((matchState?.teams[matchState.teamTurn]?.player === user?.username || false) && character.team === matchState.teamTurn) {
         await checkForStore(character)
         if (matchState.teams[character.team].remain.moves > 0) {
@@ -1921,6 +1897,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           }
         }
         if (pendingMode === "putDown" && throwableCells.includes(coordinates)) {
+          console.log('putDownObject', coordinates);
           await putDownObject(coordinates)
         }
         if (pendingMode === null) {
@@ -3135,29 +3112,58 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   const putDownObject = async (coordinates) => {
     const [col, row] = await splitCoord(coordinates);
     if (["red base", "blue base"].includes(selectedMap.map[row - 1][col - 1].initial)) {
-      if (selectedMap.map[row - 1][col - 1].initial === "red base" && INVENTORY_BASE_LIMIT - matchState.teams.red.inventory.length >= 1) {
-        matchState.teams.red.inventory.push({ ...pendingItem })
+      const nextTeams = deepClone(matchState.teams);
+      if (selectedMap.map[row - 1][col - 1].initial === "red base" && INVENTORY_BASE_LIMIT - nextTeams.red.inventory.length >= 1) {
+        nextTeams.red.inventory.push({ ...pendingItem });
       }
-      else if (selectedMap.map[row - 1][col - 1].initial === "blue base" && INVENTORY_BASE_LIMIT - matchState.teams.blue.inventory.length >= 1) {
-        matchState.teams.blue.inventory.push({ ...pendingItem })
+      else if (selectedMap.map[row - 1][col - 1].initial === "blue base" && INVENTORY_BASE_LIMIT - nextTeams.blue.inventory.length >= 1) {
+        nextTeams.blue.inventory.push({ ...pendingItem });
       }
+      // убрать предмет у текущего персонажа
+      const owner = nextTeams[selectedCharacter.team].characters.find(ch => ch.name === selectedCharacter.name);
+      if (owner) {
+        const idx = owner.inventory.findIndex(it => it.name === pendingItem.name);
+        if (idx !== -1) owner.inventory.splice(idx, 1);
+      }
+      nextTeams[selectedCharacter.team].remain.actions -= 1;
+      updateMatchState({ teams: nextTeams }, 'partial');
     }
-    else if (await findCharacterByPosition(coordinates, roomCode)) {
+    else if (Object.keys(await findCharacterByPosition(coordinates, roomCode)).length) {
       const character = await findCharacterByPosition(coordinates, roomCode);
-      if (character.team === selectedCharacter.team && character.inventory.length < character.inventoryLimit) {
-        character.inventory.push({ ...pendingItem })
+      const nextTeams = deepClone(matchState.teams);
+      const target = nextTeams[character.team].characters.find(ch => ch.name === character.name);
+      if (target && target.team === selectedCharacter.team && target.inventory.length < target.inventoryLimit) {
+        target.inventory.push({ ...pendingItem });
+        // убрать предмет у текущего персонажа
+        const owner = nextTeams[selectedCharacter.team].characters.find(ch => ch.name === selectedCharacter.name);
+        if (owner) {
+          const idx = owner.inventory.findIndex(it => it.name === pendingItem.name);
+          if (idx !== -1) owner.inventory.splice(idx, 1);
+        }
+        nextTeams[selectedCharacter.team].remain.actions -= 1;
+        updateMatchState({ teams: nextTeams }, 'partial');
       }
     }
     else {
-      matchState.objectsOnMap.push({
-        ...pendingItem,
-        type: "item",
-        position: coordinates,
-        team: selectedCharacter.team
-      });
+      const newObjects = [
+        ...matchState.objectsOnMap,
+        {
+          ...pendingItem,
+          type: "item",
+          position: coordinates,
+          team: selectedCharacter.team
+        }
+      ];
+      const nextTeams = deepClone(matchState.teams);
+      const owner = nextTeams[selectedCharacter.team].characters.find(ch => ch.name === selectedCharacter.name);
+      if (owner) {
+        const idx = owner.inventory.findIndex(it => it.name === pendingItem.name);
+        if (idx !== -1) owner.inventory.splice(idx, 1);
+      }
+      nextTeams[selectedCharacter.team].remain.actions -= 1;
+      updateMatchState({ teams: nextTeams, objectsOnMap: newObjects }, 'partial');
     }
-    selectedCharacter.inventory.splice(selectedCharacter.inventory.indexOf(pendingItem), 1);
-    updateMatchState();
+    // локальные сбросы UI
     setPendingItem(null);
     setItemHelperInfo(null)
     setThrowableCells([]);
@@ -3170,15 +3176,27 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     else {
       setPendingMode(null)
     }
-    matchState.teams[selectedCharacter.team].remain.actions -= 1;
   }
 
   const takeObject = async (object) => {
-    matchState.objectsOnMap.splice(matchState.objectsOnMap.indexOf(object), 1);
-    selectedCharacter.inventory.push({ ...object })
-    matchState.teams[selectedCharacter.team].remain.actions -= 1;
+    // Иммутабельное удаление объекта с карты
+    const newObjects = (() => {
+      const copy = [...matchState.objectsOnMap];
+      const idx = copy.findIndex(o => o.position === object.position && o.type === object.type && (o.name ? o.name === object.name : true));
+      if (idx !== -1) copy.splice(idx, 1);
+      return copy;
+    })();
+
+    // Иммутабельное добавление в инвентарь персонажа
+    const nextTeams = deepClone(matchState.teams);
+    const owner = nextTeams[selectedCharacter.team].characters.find(ch => ch.name === selectedCharacter.name);
+    if (owner) {
+      owner.inventory.push({ ...object });
+    }
+    nextTeams[selectedCharacter.team].remain.actions -= 1;
+
     setDynamicTooltip(null);
-    updateMatchState()
+    updateMatchState({ teams: nextTeams, objectsOnMap: newObjects }, 'partial');
   }
 
   const getParameterName = (parameter) => {
@@ -3961,6 +3979,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                   }
                   setThrowDestination(null);
                   setPendingItem(null);
+                  setReachableCells([]);
                   setThrowableCells([]);
                   setItemHelperInfo(null);
                 }}
@@ -4072,10 +4091,12 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                     Применить (действие)
                   </button>}
                 {itemHelperInfo.throwable && selectedCharacter && selectedCharacter.inventory.find(item => item.id === itemHelperInfo.id) &&
-                  <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
+                  <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={async () => {
                     setPendingMode("throw");
                     setPendingItem({ ...itemHelperInfo })
-                    setThrowableCells(calculateThrowableCells(selectedCharacter.position, 5, selectedMap.size));
+                    const cells = await calculateThrowableCells(selectedCharacter.position, 5, selectedMap.size);
+                    console.log("throwing cells: ", cells);
+                    setThrowableCells(cells);
                   }}>
                     Бросить (действие)
                   </button>}
@@ -4088,10 +4109,12 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                   </button>
                 }
                 {selectedCharacter && selectedCharacter.inventory.find(item => item.id === itemHelperInfo.id) &&
-                  <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
+                  <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={async () => {
                     setPendingMode("putDown");
                     setPendingItem({ ...itemHelperInfo })
-                    setThrowableCells(calculateThrowableCells(selectedCharacter.position, 1, selectedMap.size, "putDown"));
+                    const cells = await calculateThrowableCells(selectedCharacter.position, 1, selectedMap.size, "putDown");
+                    console.log("putting down cells: ", cells);
+                    setThrowableCells(cells);
                   }}>
                     Выложить (действие)
                   </button>

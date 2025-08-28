@@ -327,11 +327,23 @@ export async function cellHasType(types, coord, roomCode) {
     const token = getToken();
     if (!token) throw new Error('Токен не найден');
 
-    const response = await fetch(`${API_BASE}/api/tools/map/cell-has-type/${roomCode}/${types}/${coord}`, {
-        method: 'GET',
+    // Поддерживаем как массив типов, так и строку с запятыми
+    const typesArray = Array.isArray(types)
+        ? types
+        : String(types)
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean);
+
+    // Разрешаем передавать координату как массив [x, y] или готовую строку "x-y"
+    const coordStr = Array.isArray(coord) ? `${coord[0] + 1}-${coord[1] + 1}` : coord;
+
+    const response = await fetch(`${API_BASE}/api/tools/map/cell-has-type/${roomCode}`, {
+        method: 'POST',
         headers: {
             ...defaultHeaders(token),
         },
+        body: JSON.stringify({ types: typesArray, coord: coordStr }),
     });
     return response.json();
 }
@@ -348,6 +360,42 @@ export async function objectOnCell(coord, roomCode, type = '') {
             ...defaultHeaders(token),
         },
     });
+    return response.json();
+}
+
+// Получение свободных линий клеток от стартовой координаты
+export async function getFreeCellLines(roomCode, coords, range) {
+    const token = getToken();
+    if (!token) throw new Error('Токен не найден');
+
+    const response = await fetch(`${API_BASE}/api/tools/map/get-free-cell-lines/${roomCode}`, {
+        method: 'POST',
+        headers: {
+            ...defaultHeaders(token),
+        },
+        body: JSON.stringify({ range, coords }),
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`getFreeCellLines failed: ${response.status} ${errorText}`);
+    }
+    return response.json();
+}
+
+export async function getFreeCellsAround(roomCode, coords) {
+    const token = getToken();
+    if (!token) throw new Error('Токен не найден');
+
+    const response = await fetch(`${API_BASE}/api/tools/map/get-free-cells-around/${roomCode}/${coords}`, {
+        method: 'GET',
+        headers: {
+            ...defaultHeaders(token),
+        },
+    });
+    if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`getFreeCellsAround failed: ${response.status} ${errorText}`);
+    }
     return response.json();
 }
 
