@@ -2866,7 +2866,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                 {renderCell(cell, rowIndex, colIndex)}
                 {isAttackAnimation && (
                   <div className="attack-animation">
-                    <img src={`.https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/gifs/${getAttackName(isAttackAnimation.damageType)}.gif`} />
+                    <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/gifs/${getAttackName(isAttackAnimation.damageType)}.gif`} />
                   </div>
                 )}
                 {redChar && renderCharacterIcon(redChar, "red")}
@@ -4146,7 +4146,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         {dynamicTooltip && (
           <div className="dynamic-tooltip">
             <div className="dynamic-tooltip-image-container">
-              <img src={`.https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
+              <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
             </div>
             <h5 className="dynamic-tooltip-title">{dynamicTooltip.title}</h5>
             {dynamicTooltip.parameters &&
