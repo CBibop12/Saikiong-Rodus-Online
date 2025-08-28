@@ -1,6 +1,6 @@
 // pages/RulesPage.jsx
 import React, { useState, useEffect } from 'react';
-import { rulesText } from '../assets/rules.txt'
+import { rulesText } from '../assets/rules'
 import "../styles/rulesStyle.css"
 
 const RulesPage = () => {
