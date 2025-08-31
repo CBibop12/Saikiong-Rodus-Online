@@ -3303,6 +3303,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     setManaDistribution({});
     setSelectedRecipient(null);
     setStore(null);
+    matchState.teams[selectedCharacter.team].remain.actions -= 1;
   };
 
   const alliesNearStore = () => {
