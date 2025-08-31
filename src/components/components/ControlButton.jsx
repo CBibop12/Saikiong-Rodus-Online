@@ -8,7 +8,7 @@ const ControlButton = ({ round, isItMyTurn, handleEndRound, handlePause, countdo
     <div className="end-round-section">
       <div className="upper-section">
         {/* Круговой таймер автозавершения - слева от кнопки */}
-      {countdownProgress > 0 && (
+      {countdownProgress > 0 && countdownProgress < 1 && isItMyTurn && (
         <div
           style={{
             width: "32px",

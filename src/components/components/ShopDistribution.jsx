@@ -92,7 +92,7 @@ const ShopDistribution = ({
                         </div>
                         <div className="store-modal-actions">
                             <button onClick={() => setShowRecipientSelection(false)}>Отмена</button>
-                            <button onClick={() => { variativeManaDistributionNext()}} disabled={!selectedRecipient}>{variativeManaDistributionNextButtonName()}</button>
+                            <button onClick={() => { variativeManaDistributionNext() }} disabled={!selectedRecipient}>{variativeManaDistributionNextButtonName()}</button>
                         </div>
                     </div>
                 </div>
@@ -100,15 +100,21 @@ const ShopDistribution = ({
             {showManaDistribution && (
                 <div className="store-modal-overlay">
                     <div className="store-modal-content">
-                        <h3>Распределение маны</h3>
+                        <h3>{selectedItem?.currency === 'HP' ? 'Распределение HP' : 'Распределение маны'}</h3>
                         <p>Общая стоимость: {selectedItem?.name === 'Усиление урона' ? (selectedRecipient?.stats?.Мана || 0) : selectedItem.price}</p>
                         {Object.keys(manaDistribution).map(name => (
                             <div key={name} className="store-mana-distribution-row">
-                                <span>{name} (Макс. мана: {matchState.teams[teamTurn].characters.find(ch => ch.name === name).currentMana})</span>
+                                <span>
+                                    {name} ({selectedItem?.currency === 'HP'
+                                        ? `HP доступно: ${Math.max(0, (matchState.teams[teamTurn].characters.find(ch => ch.name === name).currentHP || 0) - 1)}`
+                                        : `Макс. мана: ${matchState.teams[teamTurn].characters.find(ch => ch.name === name).currentMana}`})
+                                </span>
                                 <input
                                     type="number"
                                     min="0"
-                                    max={matchState.teams[teamTurn].characters.find(ch => ch.name === name).currentMana}
+                                    max={selectedItem?.currency === 'HP'
+                                        ? Math.max(0, (matchState.teams[teamTurn].characters.find(ch => ch.name === name).currentHP || 0) - 1)
+                                        : matchState.teams[teamTurn].characters.find(ch => ch.name === name).currentMana}
                                     value={manaDistribution[name]}
                                     onChange={(e) => handleManaDistributionChange(name, e.target.value)}
                                 />
