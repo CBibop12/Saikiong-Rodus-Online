@@ -218,14 +218,26 @@ const executeCommand = (object, context) => {
       }
       // Проверка и списание валюты
       if (requiredCurrency === "маны") {
-        if (charObj.currentMana < costValue) {
-          addActionLog(
-            `Недостаточно маны у ${charObj.name} для покупки ${item}`
-          );
-          return;
-        }
-        if (costValue > 0 && item !== "Броня" && item !== "Усиление урона") {
-          charObj.currentMana -= costValue;
+        // Специальная логика стоимости для "Усиление урона": цена = 100% от максимума маны получателя (в соло — покупателя)
+        if (item === "Усиление урона") {
+          const required = charObj.stats.Мана || 0;
+          if (charObj.currentMana < required) {
+            addActionLog(
+              `Недостаточно маны у ${charObj.name} для покупки Усиления урона (нужно: ${required})`
+            );
+            return;
+          }
+          charObj.currentMana -= required;
+        } else {
+          if (charObj.currentMana < costValue) {
+            addActionLog(
+              `Недостаточно маны у ${charObj.name} для покупки ${item}`
+            );
+            return;
+          }
+          if (costValue > 0 && item !== "Броня") {
+            charObj.currentMana -= costValue;
+          }
         }
       } else {
         if (matchState.teams[findCharacter(characterName, matchState).team].gold < costValue) {
@@ -262,6 +274,9 @@ const executeCommand = (object, context) => {
       } else if (item === "Усиление урона") {
         const result = useDamageBoostEffect(charObj);
         addActionLog(result.message);
+        // Перезарядка магазина для покупателя (соло-покупка)
+        const cooldownField = itemData.shopType === "Лаборатория" ? "labCooldown" : "armoryCooldown";
+        charObj[cooldownField] = 6;
       }
       if (
         charObj.inventory.length < 3 &&

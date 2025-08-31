@@ -3236,24 +3236,27 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
   const handleManaDistributionNext = () => {
     const totalDistributed = Object.values(manaDistribution).reduce((sum, mana) => sum + mana, 0);
-    if (totalDistributed === selectedItem.price) {
+    const required = selectedItem?.name === "Усиление урона" ? (selectedRecipient?.stats?.Мана || 0) : selectedItem.price;
+    if (totalDistributed === required) {
       setShowManaDistribution(false);
-      if (selectedItem.name !== "Зелье воскрешения") {
-        setShowRecipientSelection(true);
-      }
-      else {
+      if (selectedItem.name === "Зелье воскрешения") {
         if (matchState.teams[teamTurn].latestDeath !== null) {
           const character = matchState.teams[teamTurn].characters.find(ch => ch.name === matchState.teams[teamTurn].latestDeath);
           character.currentHP = character.baseHP;
           character.currentMana = character.baseMana;
           matchState.teams[teamTurn].latestDeath = null;
           updateMatchState();
-        }
-        else {
+        } else {
           matchState.teams[teamTurn].inventory.push(selectedItem);
           updateMatchState();
         }
         handleFinalizePurchase();
+      } else if (selectedItem.name === "Усиление урона") {
+        // Для усиления урона завершаем сразу после распределения
+        handleFinalizePurchase();
+      } else {
+        // Для остальных предметов – как раньше: после распределения открываем выбор получателя
+        setShowRecipientSelection(true);
       }
     }
   };
@@ -3270,15 +3273,20 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       }
     });
 
-    // Добавляем предмет получателю
-    if (selectedRecipient && selectedItem.type === "wearable") {
-      selectedRecipient.wearableItems = selectedRecipient.wearableItems || [];
-      selectedRecipient.wearableItems.push(selectedItem);
-      if (selectedItem.onWear) {
-        selectedItem.onWear(selectedRecipient);
+    // "Усиление урона" не добавляется в инвентарь, а сразу даёт +50 урона
+    if (selectedItem?.name === "Усиление урона") {
+      selectedRecipient.currentDamage += 50;
+    } else {
+      // Добавляем предмет получателю
+      if (selectedRecipient && selectedItem.type === "wearable") {
+        selectedRecipient.wearableItems = selectedRecipient.wearableItems || [];
+        selectedRecipient.wearableItems.push(selectedItem);
+        if (selectedItem.onWear) {
+          selectedItem.onWear(selectedRecipient);
+        }
+      } else if (selectedRecipient && selectedItem.name !== "Зелье воскрешения") {
+        selectedRecipient.inventory.push(selectedItem);
       }
-    } else if (selectedRecipient && selectedItem.name !== "Зелье воскрешения") {
-      selectedRecipient.inventory.push(selectedItem);
     }
 
     // Устанавливаем перезарядку магазина для получателя
@@ -3358,6 +3366,23 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     }
     const allies = alliesNearStore();
     if (allies.length === 1) {
+      // Соло покупка. Для усиления урона цена = 100% от максимума маны покупателя
+      if (item.name === "Усиление урона") {
+        const buyer = allies[0];
+        const required = buyer.stats?.Мана || 0;
+        if (buyer.currentMana < required) {
+          addActionLog(`Недостаточно маны у ${buyer.name} для покупки Усиления урона (нужно: ${required})`);
+          return;
+        }
+        setSelectedItem(item);
+        setSelectedRecipient(buyer);
+        const initialDistribution = {};
+        allies.forEach(ally => { initialDistribution[ally.name] = 0; });
+        setManaDistribution(initialDistribution);
+        setShowRecipientSelection(false);
+        setShowManaDistribution(true);
+        return;
+      }
       await handleBuyItem(item);
     } else {
       setSelectedItem(item);
@@ -3366,7 +3391,12 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         initialDistribution[ally.name] = 0;
       });
       setManaDistribution(initialDistribution);
-      setShowManaDistribution(true);
+      // Для усиления урона сначала выбираем получателя (чтобы знать цену)
+      if (item.name === "Усиление урона") {
+        setShowRecipientSelection(true);
+      } else {
+        setShowManaDistribution(true);
+      }
     }
   }
 
@@ -3594,6 +3624,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         handleFinalizePurchase={handleFinalizePurchase}
         selectedRecipient={selectedRecipient}
         setSelectedRecipient={setSelectedRecipient}
+        store={store}
       />
       <PauseModal
         isPaused={isPaused}

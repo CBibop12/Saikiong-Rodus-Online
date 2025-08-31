@@ -325,6 +325,11 @@
   border: 2px solid #FFD700;
 }
 
+.store-recipient-option.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Magic Cart Styles */
 .magic-cart-container {
   margin-top: 20px;
