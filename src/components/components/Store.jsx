@@ -5,7 +5,7 @@ import { ChevronDown, ChevronUp, ShoppingCart, X } from 'lucide-react';
 import '../../styles/store.css';
 import { items } from '../../data';
 
-const Store = ({ matchState, character, storeType, onClose, onBuy, selectedMap, alliesNearStore, cartItems = [], onFinalizeCart, onRemoveFromCart }) => {
+const Store = ({ matchState, character, storeType, onClose, onBuy, selectedMap, alliesNearStore, cartItems = [], onFinalizeCart, onRemoveFromCart, isMyTurn = false }) => {
   const [expandedItems, setExpandedItems] = useState({});
   const [activeTab, setActiveTab] = useState('shop'); // 'shop' или 'cart'
 
@@ -28,15 +28,21 @@ const Store = ({ matchState, character, storeType, onClose, onBuy, selectedMap, 
 
   const canAffordItem = (item) => {
     if (!character) return false;
+    // Не может купить, если персонаж не принадлежит юзеру, и если это не ход команды этого персонажа
+    if (!isMyTurn || character.team !== matchState.teamTurn) return false;
     const cooldownByStore = storeType === "laboratory" ? "labCooldown" : "armoryCooldown";
     if (storeType !== 'magic shop') {
       const allies = alliesNearStore();
       const alliesNoCd = allies.filter(ally => ally[cooldownByStore] === 0);
       const totalMana = alliesNoCd.reduce((acc, ally) => acc + ally.currentMana, 0);
+      const totalHpAvailable = alliesNoCd.reduce((acc, ally) => acc + Math.max(0, (ally.currentHP || 0) - 1), 0);
       if (item.name === "Усиление урона") {
         // Можно купить, если есть хотя бы один получатель, чей максимум маны <= общей доступной мане
         const hasAffordableTarget = alliesNoCd.some(ally => (ally.stats?.Мана || 0) <= totalMana);
         return alliesNoCd.length > 0 && hasAffordableTarget;
+      }
+      if (item.currency === 'HP') {
+        return alliesNoCd.length > 0 && totalHpAvailable >= item.price;
       }
       return alliesNoCd.length > 0 && totalMana >= item.price;
     }
@@ -73,6 +79,7 @@ const Store = ({ matchState, character, storeType, onClose, onBuy, selectedMap, 
   }
 
   const handleBuyClick = (item) => {
+    if (!isMyTurn || character?.team !== matchState.teamTurn) return;
     // Проверяем лимит инвентаря для магического магазина
     if (storeType === 'magic shop' && character) {
       const currentItems = cartItems.length;
@@ -126,7 +133,7 @@ const Store = ({ matchState, character, storeType, onClose, onBuy, selectedMap, 
                 <div className="item-info">
                   <h3>{item.name}</h3>
                   <div className="item-price">
-                    {storeType !== 'magic shop' ? 'Мана: ' : 'Золото: '}
+                    {storeType !== 'magic shop' ? (item.currency === 'HP' ? 'HP: ' : 'Мана: ') : 'Золото: '}
                     {item.price}
                   </div>
                 </div>
