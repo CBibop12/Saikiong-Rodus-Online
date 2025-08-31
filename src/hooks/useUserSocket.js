@@ -7,6 +7,8 @@ export const useUserSocket = (onEvent) => {
     const reconnectTimeoutRef = useRef(null);
     const retryAttemptRef = useRef(0);
     const onEventRef = useRef(onEvent);
+    const isUnmountingRef = useRef(false);
+    const openedAtRef = useRef(null);
     onEventRef.current = onEvent;
 
     const clearPing = () => {
@@ -19,12 +21,24 @@ export const useUserSocket = (onEvent) => {
     const cleanupSocket = () => {
         clearPing();
         if (wsRef.current) {
-            try { wsRef.current.close(); } catch { /* noop */ }
+            try {
+                const current = wsRef.current;
+                if (current.readyState === WebSocket.CONNECTING) {
+                    const handleOpenThenClose = () => {
+                        try { current.close(1000, 'cleanup'); } catch { /* noop */ }
+                        current.removeEventListener('open', handleOpenThenClose);
+                    };
+                    current.addEventListener('open', handleOpenThenClose);
+                } else {
+                    current.close(1000, 'cleanup');
+                }
+            } catch { /* noop */ }
             wsRef.current = null;
         }
     };
 
     const scheduleReconnect = () => {
+        if (isUnmountingRef.current) return;
         const attempt = retryAttemptRef.current + 1;
         retryAttemptRef.current = attempt;
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
@@ -43,7 +57,7 @@ export const useUserSocket = (onEvent) => {
         wsRef.current = socket;
 
         socket.onopen = () => {
-            console.info('🔌 User WebSocket открыт');
+            openedAtRef.current = Date.now();
             retryAttemptRef.current = 0;
             clearPing();
             pingIntervalRef.current = setInterval(() => {
@@ -56,7 +70,9 @@ export const useUserSocket = (onEvent) => {
         socket.onmessage = (e) => {
             try {
                 const data = JSON.parse(e.data);
-                if (data?.type === 'PONG' || data?.type === 'PING') return;
+                if (data?.type === 'PONG' || data?.type === 'PING') {
+                    return;
+                }
                 onEventRef.current && onEventRef.current(data);
             } catch (err) {
                 console.error('Ошибка парсинга события userWS', err);
@@ -64,18 +80,23 @@ export const useUserSocket = (onEvent) => {
         };
 
         socket.onerror = (err) => console.error('userWS error', err);
-        socket.onclose = () => {
-            console.info('🔌 User WebSocket закрыт');
+        socket.onclose = (evt) => {
+            const lifetimeMs = openedAtRef.current ? Date.now() - openedAtRef.current : null;
             clearPing();
-            scheduleReconnect();
+            if (!isUnmountingRef.current && evt?.code !== 1000) {
+                scheduleReconnect();
+            }
         };
     };
 
     useEffect(() => {
+        isUnmountingRef.current = false;
         connect();
         return () => {
+            isUnmountingRef.current = true;
             if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
             cleanupSocket();
+            setTimeout(() => { isUnmountingRef.current = false; }, 0);
         };
     }, []);
 

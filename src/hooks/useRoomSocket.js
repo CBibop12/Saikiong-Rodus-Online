@@ -8,6 +8,8 @@ export const useRoomSocket = (roomCode, onEvent) => {
     const retryAttemptRef = useRef(0);
     const roomCodeRef = useRef(roomCode);
     const onEventRef = useRef(onEvent);
+    const isUnmountingRef = useRef(false);
+    const openedAtRef = useRef(null);
 
     const [isOpen, setIsOpen] = useState(false);
     const pendingQueueRef = useRef([]); // очередь для сообщений, отправляемых до открытия
@@ -25,7 +27,18 @@ export const useRoomSocket = (roomCode, onEvent) => {
     const cleanupSocket = () => {
         clearPing();
         if (wsRef.current) {
-            try { wsRef.current.close(); } catch { /* noop */ }
+            try {
+                const current = wsRef.current;
+                if (current.readyState === WebSocket.CONNECTING) {
+                    const handleOpenThenClose = () => {
+                        try { current.close(1000, 'cleanup'); } catch { /* noop */ }
+                        current.removeEventListener('open', handleOpenThenClose);
+                    };
+                    current.addEventListener('open', handleOpenThenClose);
+                } else {
+                    current.close(1000, 'cleanup');
+                }
+            } catch { /* noop */ }
             wsRef.current = null;
         }
         setIsOpen(false);
@@ -33,6 +46,7 @@ export const useRoomSocket = (roomCode, onEvent) => {
 
     const scheduleReconnect = () => {
         // экспоненциальная задержка до 10 секунд
+        if (isUnmountingRef.current) return;
         const attempt = retryAttemptRef.current + 1;
         retryAttemptRef.current = attempt;
         const delay = Math.min(1000 * Math.pow(2, attempt - 1), 10000);
@@ -62,7 +76,7 @@ export const useRoomSocket = (roomCode, onEvent) => {
         wsRef.current = socket;
 
         socket.onopen = () => {
-            console.info('🔌 Room WebSocket открыт');
+            openedAtRef.current = Date.now();
             retryAttemptRef.current = 0; // сбрасываем счётчик попыток
             setIsOpen(true);
             // heartbeat каждые 25 сек
@@ -90,19 +104,24 @@ export const useRoomSocket = (roomCode, onEvent) => {
             console.error('Room WebSocket error', err);
         };
 
-        socket.onclose = () => {
-            console.info('🔌 Room WebSocket закрыт');
+        socket.onclose = (evt) => {
+            const lifetimeMs = openedAtRef.current ? Date.now() - openedAtRef.current : null;
             clearPing();
             setIsOpen(false);
-            scheduleReconnect();
+            if (!isUnmountingRef.current && evt?.code !== 1000) {
+                scheduleReconnect();
+            }
         };
     };
 
     useEffect(() => {
+        isUnmountingRef.current = false;
         connect();
         return () => {
+            isUnmountingRef.current = true;
             if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
             cleanupSocket();
+            setTimeout(() => { isUnmountingRef.current = false; }, 0);
         };
     }, [roomCode]);
 
