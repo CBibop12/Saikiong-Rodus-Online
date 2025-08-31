@@ -206,9 +206,10 @@ const executeCommand = (object, context) => {
         itemData.shopType === "Лаборатория" ||
         itemData.shopType === "Оружейная"
       ) {
-        requiredCurrency = "маны";
+        // По умолчанию оплата маной для лаборатории/оружейной, кроме особых предметов
+        requiredCurrency = itemData.currency === "HP" ? "HP" : "маны";
       } else {
-        requiredCurrency = "маны";
+        requiredCurrency = itemData.currency === "HP" ? "HP" : "маны";
       }
       let costValue = 0;
       if (typeof itemData.price === "number") {
@@ -239,6 +240,16 @@ const executeCommand = (object, context) => {
             charObj.currentMana -= costValue;
           }
         }
+      } else if (requiredCurrency === "HP") {
+        // Оплата HP (например, "Зелье маны")
+        const minHpAfterPurchase = 1;
+        if (charObj.currentHP - costValue < minHpAfterPurchase) {
+          addActionLog(
+            `Недостаточно HP у ${charObj.name} для покупки ${item} (нужно: ${costValue})`
+          );
+          return;
+        }
+        charObj.currentHP -= costValue;
       } else {
         if (matchState.teams[findCharacter(characterName, matchState).team].gold < costValue) {
           addActionLog(

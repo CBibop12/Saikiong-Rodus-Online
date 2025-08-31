@@ -3815,7 +3815,7 @@ export const items = [
     name: "Зелье воскрешения",
     image: "potionOfRevival.png",
     shopType: "Лаборатория",
-    price: 100,
+    price: 7000,
     currency: "mana",
     type: "item",
     description:

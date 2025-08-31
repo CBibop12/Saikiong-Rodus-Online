@@ -3228,11 +3228,15 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   }
 
   const handleManaDistributionChange = (characterName, value) => {
+    const contributor = matchState.teams[teamTurn].characters.find(ch => ch.name === characterName);
+    const maxByResource = selectedItem?.currency === 'HP'
+      ? Math.max(0, (contributor?.currentHP || 0) - 1)
+      : (contributor?.currentMana || 0);
     setManaDistribution(prev => ({
       ...prev,
       [characterName]: Math.min(
-        Number(value),
-        matchState.teams[teamTurn].characters.find(ch => ch.name === characterName).currentMana
+        Math.max(0, Number(value)),
+        maxByResource
       )
     }));
   };
@@ -3265,11 +3269,17 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   };
 
   const handleFinalizePurchase = () => {
-    // Обновляем ману у персонажей
-    Object.entries(manaDistribution).forEach(([name, mana]) => {
-      if (mana > 0) {
+    // Списываем распределенный ресурс (мана или HP)
+    Object.entries(manaDistribution).forEach(([name, amount]) => {
+      if (amount > 0) {
         const character = matchState.teams[teamTurn].characters.find(ch => ch.name === name);
-        character.currentMana -= mana;
+        if (selectedItem?.currency === 'HP') {
+          const minHpAfterPurchase = 1;
+          const payable = Math.min(amount, Math.max(0, (character.currentHP || 0) - minHpAfterPurchase));
+          character.currentHP -= payable;
+        } else {
+          character.currentMana -= amount;
+        }
         // Устанавливаем перезарядку магазина
         const cooldownField = store === 'laboratory' ? 'labCooldown' : 'armoryCooldown';
         character[cooldownField] = 6;
@@ -3653,6 +3663,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           matchState={matchState}
           character={selectedCharacter ? selectedCharacter : null}
           storeType={store}
+          isMyTurn={matchState?.teams[matchState.teamTurn]?.player === (user?.username || initialUser?.username) || false}
           onClose={() => {
             setMagicCart([]);
             setStore(null);
