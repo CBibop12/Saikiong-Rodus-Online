@@ -16,13 +16,12 @@ export const applyArmorEffect = (character) => {
 };
 
 // Функция для обработки покупки "Усиление урона"
-// При покупке усиления урона весь остаток маны обнуляется, а урон увеличивается на 50.
+// При покупке усиления урона урон увеличивается на 50. Списание маны происходит в вызывающем коде.
 export const useDamageBoostEffect = (character) => {
   character.currentDamage += 50;
-  character.currentMana = 0;
   return {
     success: true,
-    message: `${character.name} покупает Усиление урона: +50 к урону, мана обнулена`,
+    message: `${character.name} покупает Усиление урона: +50 к урону`,
   };
 };
 
@@ -554,7 +553,7 @@ export const useMineActive = (character) => {
 
 // Зелье заморозки (актив):
 // Разбивается и замораживает область вокруг себя
-export const useFreezePotionActive = (character, targetArea) => {
+export const useFreezePotionActive = (character) => {
   return {
     success: true,
     message: `${character.name} использует Зелье заморозки: область заморожена`,
@@ -624,7 +623,7 @@ export const useDarkPactActive = (character) => {
 
 // Свиток пиромантии (актив):
 // Наносит 200 физ. урона по области с радиусом 3 клеток и поджигает ее
-export const usePyromancyScrollActive = (character, targetArea) => {
+export const usePyromancyScrollActive = (character) => {
   return {
     success: true,
     message: `${character.name} использует Свиток пиромантии: область подожжена`,
@@ -642,7 +641,7 @@ export const useCharmScrollActive = (character, target) => {
 
 // Свиток чудес (актив):
 // Восстанавливает союзникам в области с радиусом 3 клеток по 200 HP
-export const useWonderScrollActive = (character, targetArea) => {
+export const useWonderScrollActive = (character) => {
   return {
     success: true,
     message: `${character.name} использует Свиток чудес: союзники восстановлены на 200 HP`,

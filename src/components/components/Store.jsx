@@ -28,10 +28,17 @@ const Store = ({ matchState, character, storeType, onClose, onBuy, selectedMap, 
 
   const canAffordItem = (item) => {
     if (!character) return false;
-    const cooldownByStore = storeType === "laboratory" ? "labCooldown" : "armoryCooldown"
+    const cooldownByStore = storeType === "laboratory" ? "labCooldown" : "armoryCooldown";
     if (storeType !== 'magic shop') {
-      const totalMana = alliesNearStore().reduce((acc, ally) => acc + ally.currentMana, 0);
-      return totalMana >= item.price && alliesNearStore().every(ally => ally[cooldownByStore] === 0);
+      const allies = alliesNearStore();
+      const alliesNoCd = allies.filter(ally => ally[cooldownByStore] === 0);
+      const totalMana = alliesNoCd.reduce((acc, ally) => acc + ally.currentMana, 0);
+      if (item.name === "Усиление урона") {
+        // Можно купить, если есть хотя бы один получатель, чей максимум маны <= общей доступной мане
+        const hasAffordableTarget = alliesNoCd.some(ally => (ally.stats?.Мана || 0) <= totalMana);
+        return alliesNoCd.length > 0 && hasAffordableTarget;
+      }
+      return alliesNoCd.length > 0 && totalMana >= item.price;
     }
     return matchState.teams[character.team].gold >= item.price;
   };
