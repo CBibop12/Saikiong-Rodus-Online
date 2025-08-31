@@ -615,7 +615,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     let storeType = null;
     const nearCells = await calculateNearCells(character.position, roomCode);
     for (let coord of nearCells) {
-      if (await cellHasType(["laboratory", "armory", "magic shop"], coord, roomCode)) {
+      if (["laboratory", "armory", "magic shop"].includes(await initialOfCell(coord, roomCode))) {
         storeType = await initialOfCell(coord, roomCode);
         break;
       }
@@ -1459,8 +1459,6 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     console.log('nextState', nextState);
     console.log('matchState', matchState);
 
-    await checkForStore(selectedCharacter);
-
     // Передаём в updateMatchState именно новую копию
     updateMatchState(nextState);
 
@@ -1469,6 +1467,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       const updatedCharacter = { ...selectedCharacter, position: coordinates };
       setSelectedCharacter(updatedCharacter);
       await checkModePossibilityForCharacter(updatedCharacter, nextState);
+      await checkForStore(updatedCharacter);
     }
   };
 
@@ -1623,6 +1622,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           else {
             setPendingMode(null)
           }
+          await checkForStore(character);
         }
         else if (attackableCells.includes(character.position)) {
           const result = handleAttackCharacter(character)[0];
@@ -1663,6 +1663,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         else {
           setPendingMode(null)
         }
+        await checkForStore(character);
       }
       else if (matchState.teams[character.team].remain.moves > 0 && teamTurn === character.team) {
         setShowCharacterInfoPanel(true);
@@ -2511,6 +2512,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     setSelectedCharacter(null);
     setPendingMode(null);
     setClickedEffectOnPanel(null);
+    setStore(null);
   }
 
   /**
@@ -3059,10 +3061,11 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     [matchState.teams.blue.characters]
   );
   const handleSelectCharacter = useCallback(
-    (char) => {
+    async (char) => {
       setSelectedCharacter(char);
       setPendingMode(null);
       setFreeCells([]); // Очищаем freeCells при смене персонажа
+      await checkForStore(char);
     },
     []                                   // всегда одна и та же ссылка
   );
