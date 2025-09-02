@@ -59,7 +59,41 @@ const Room = () => {
 
 
     useEffect(() => {
-        // Загрузка данных пользователя
+        // JWT helpers
+        const parseJwt = (token) => {
+            try {
+                const base64Url = token.split('.')[1];
+                const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+                return JSON.parse(jsonPayload);
+            } catch {
+                return null;
+            }
+        };
+
+        const token = localStorage.getItem('srUserToken');
+        if (!token) {
+            window.location.href = 'https://saikiongrodus.com/profile';
+            return;
+        }
+
+        const payload = parseJwt(token);
+        const isExpired = payload?.exp ? Date.now() >= payload.exp * 1000 : false;
+        if (!payload || isExpired) {
+            try { localStorage.removeItem('srUserToken'); } catch { /* noop */ }
+            window.location.href = 'https://saikiongrodus.com/profile';
+            return;
+        }
+
+        // Устанавливаем раннего пользователя из токена, чтобы исключить гонки
+        try {
+            const earlyUsername = payload?.username || payload?.user?.username || payload?.name || payload?.sub || null;
+            if (earlyUsername) {
+                setUser((prev) => prev?.username ? prev : { username: earlyUsername });
+            }
+        } catch { /* noop */ }
+
+        // Загрузка данных пользователя (валидный токен)
         userRoutes.getProfile()
             .then(setUser)
             .catch(err => {
@@ -361,8 +395,23 @@ const Room = () => {
                 break;
             }
             case 'PLAYER_JOINED': {
-                const { user: joinedUser, username, joined } = event;
+                const { user: joinedUser, username, joined } = event.payload || event;
                 if (!username) break;
+
+                // Определяем наш username из токена для диагностики
+                let tokenUsername = null;
+                try {
+                    const token = localStorage.getItem('srUserToken');
+                    if (token) {
+                        const base64Url = token.split('.')[1];
+                        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+                        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+                        const payload = JSON.parse(jsonPayload);
+                        tokenUsername = payload?.username || payload?.user?.username || payload?.name || payload?.sub || null;
+                    }
+                } catch { /* noop */ }
+
+                console.log('[PLAYER_JOINED] for username=', username, 'isOurUser=', tokenUsername === username, { joined, hasJoinedUser: Boolean(joinedUser) });
                 setRoom((prev) => {
                     if (!prev) return prev;
                     let participants = prev.participants || [];
@@ -375,8 +424,14 @@ const Room = () => {
                     }
                     return { ...prev, participants };
                 });
+                // Обновляем текущего пользователя только если событие относится к нам
                 if (joinedUser) {
-                    setUser(joinedUser);
+                    if (tokenUsername && joinedUser.username === tokenUsername) {
+                        console.log('[PLAYER_JOINED] Updating current user from self event:', joinedUser.username);
+                        setUser(joinedUser);
+                    } else {
+                        console.log('[PLAYER_JOINED] Skip updating current user. Event user=', joinedUser.username, 'token user=', tokenUsername);
+                    }
                 }
                 break;
             }
