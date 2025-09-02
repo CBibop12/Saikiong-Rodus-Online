@@ -74,7 +74,7 @@ export function attack(attacker, affiliate, targets, damage, damageType) {
                 target.position = null;
             }
             console.log(attacker);
-            
+
             attacker.caster.currentHP = Math.min(attacker.caster.stats.HP, attacker.caster.currentHP + attacker.caster.advancedSettings?.vampirism)
         }
 
@@ -88,7 +88,7 @@ export function attack(attacker, affiliate, targets, damage, damageType) {
 
     return results;
 }
-  
+
 export function attackBase(baseAffiliate, damage, matchState) {
     let baseHP = Math.max(0, matchState.teams[baseAffiliate].baseHP - damage)
     if (baseHP) {
@@ -110,8 +110,8 @@ export function attackBase(baseAffiliate, damage, matchState) {
     }
 }
 
-export function attackBuilding(building, {damage, damageType}, matchState) {
-
+export function attackBuilding(building, { damage, damageType }, matchState) {
+    if (!building.isDestroyable) return;
     if (building.currentArmor > 0) {
         if (damageType === "физический" || damageType === "технический") {
             building.currentArmor--
@@ -133,39 +133,39 @@ export function attackBuilding(building, {damage, damageType}, matchState) {
         building.currentHP = Math.max(building.currentHP - damage, 0)
     }
     console.log(building);
-    
-    building.onHit? building.onHit() : ""
-    
+
+    building.onHit ? building.onHit() : ""
+
     if (building.currentHP === 0) {
         console.log("Тупо я перед тем как поломаться", building);
         removeBuilding(null, matchState, building.id)
     }
     if (building.currentHP === 0) {
         console.log("Некролог");
-        return {isDestroyed: true}
+        return { isDestroyed: true }
     }
     else {
-        return {isDestroyed: false}
+        return { isDestroyed: false }
     }
 }
 
 /* ────────────────────────── helpers ────────────────────────── */
-  
+
 /** Нормализуем строку damageType (принимаем RU/EN). */
 function normalizeDamageType(type) {
     const map = {
         "физический": "physical",
-        physical:      "physical",
+        physical: "physical",
         "технический": "technical",
-        technical:     "technical",
+        technical: "technical",
         "магический": "magical",
-        magical:       "magical",
-        "чистый":      "pure",
-        pure:          "pure",
+        magical: "magical",
+        "чистый": "pure",
+        pure: "pure",
     };
     return map[type] ?? type;
 }
-  
+
 /**
  * Проверяет, разрешено ли воздействовать на target по правилу affiliate.
  * Допустимые значения affiliate такие же, как в abilities.js.
@@ -174,7 +174,7 @@ function canTarget(attacker, target, affiliate) {
     console.log(attacker, target, affiliate);
     // проверяем, что оба объекта имеют поле team
     const sameTeam = attacker.caster.team && target.team && attacker.caster.team === target.team;
-    
+
     switch (affiliate) {
         case "negative only":      // только враги
             return !sameTeam;
@@ -192,4 +192,3 @@ function canTarget(attacker, target, affiliate) {
             return true;
     }
 }
-  

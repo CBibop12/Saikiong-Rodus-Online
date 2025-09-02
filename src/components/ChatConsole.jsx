@@ -210,6 +210,31 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   const [selectedAction, setSelectedAction] = useState("Взаимодействие");
   const [user, setUser] = useState(initialUser);
 
+  // Стабилизация пользователя: берём username из JWT, если проп ещё не готов
+  useEffect(() => {
+    if (user?.username) return;
+    try {
+      const token = localStorage.getItem('srUserToken');
+      if (!token) return;
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+      const payload = JSON.parse(jsonPayload);
+      const tokenUsername = payload?.username || payload?.user?.username || payload?.name || payload?.sub || null;
+      if (tokenUsername) {
+        setUser((prev) => prev?.username ? prev : { username: tokenUsername });
+      }
+    } catch { /* noop */ }
+  }, [user?.username]);
+
+  // Обновляем локального пользователя при изменении пропа
+  useEffect(() => {
+    if (!initialUser) return;
+    if (!user || initialUser?.username !== user?.username) {
+      setUser(initialUser);
+    }
+  }, [initialUser?.username]);
+
   // Локальная функция для проверки близости к базе команды
   const isNearTeamBase = (position, team) => {
     const [posCol, posRow] = position.split('-').map(Number);
@@ -351,8 +376,16 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       setMatchState(initialMatchState);
       setMatchStateCheckpoint(deepClone(initialMatchState));
     }
-    setIsMyTurn(isItMyTurn(user, room, teamTurn));
   }, [initialMatchState]);
+
+  // Пересчитываем «мой ход» когда готовы user/room/teamTurn
+  useEffect(() => {
+    if (!user?.username || !room || teamTurn == null || !matchState) return;
+    const currentPlayer = matchState?.teams?.[teamTurn]?.player;
+    const me = user?.username || initialUser?.username;
+    const myTurn = Boolean(currentPlayer && me && currentPlayer === me);
+    if (isMyTurn !== myTurn) setIsMyTurn(myTurn);
+  }, [user?.username, room?._id, teamTurn, matchState?.teams?.red?.player, matchState?.teams?.blue?.player]);
 
   // Эффект для обработки входящих diff-ов от сервера
   useEffect(() => {
@@ -1053,8 +1086,8 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       case 'healing zone': return `${baseClass} healing-zone`;
       case 'red portal': return `${baseClass} red-portal-cover`;
       case 'blue portal': return `${baseClass} blue-portal-cover`;
-      case 'red church': return `${baseClass} ${churchClass}-cover`;
-      case 'blue church': return `${baseClass} ${churchClass}-cover`;
+      case 'red church': return `${baseClass} empty`;
+      case 'blue church': return `${baseClass} empty`;
       case 'redChurch powerpoint': return `${baseClass} red-church-powerpoint`;
       case 'blueChurch powerpoint': return `${baseClass} blue-church-powerpoint`;
       case 'mob spawnpoint': return `${baseClass} mob-spawnpoint`;
@@ -1747,6 +1780,8 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         });
       }
     } else {
+      console.log(coordinates);
+      console.log(matchState.objectsOnMap.find(obj => obj.position === coordinates));
       if (matchState.objectsOnMap.find(obj => obj.position === coordinates)) {
         if (dynamicTooltip && dynamicTooltip.coordinates === coordinates) {
           if (pendingMode === "attack") {
@@ -1771,6 +1806,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                   description: object.description,
                   parameters: object.type === "building" ? {
                     stats: object.stats,
+                    isDestroyable: (object.isDestroyable !== undefined ? object.isDestroyable : true),
                     current: {
                       currentHP: object.currentHP,
                       currentAgility: object.currentAgility,
@@ -1813,6 +1849,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
             description: object.description,
             parameters: object.type === "building" ? {
               stats: object.stats,
+              isDestroyable: (object.isDestroyable !== undefined ? object.isDestroyable : true),
               current: {
                 currentHP: object.currentHP,
                 currentAgility: object.currentAgility,
@@ -1913,6 +1950,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                 description: object.description,
                 parameters: object.type === "building" ? {
                   stats: object.stats,
+                  isDestroyable: (object.isDestroyable !== undefined ? object.isDestroyable : true),
                   current: {
                     currentHP: object.currentHP,
                     currentAgility: object.currentAgility,
@@ -4192,15 +4230,21 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         {dynamicTooltip && (
           <div className="dynamic-tooltip">
             <div className="dynamic-tooltip-image-container">
-              <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
+              {dynamicTooltip.image && (
+                <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
+              )}
             </div>
             <h5 className="dynamic-tooltip-title">{dynamicTooltip.title}</h5>
-            {dynamicTooltip.parameters &&
-              <div className="parametersHP-bar">
-                <div className="parametersHP-fill" style={{ width: `${(dynamicTooltip.parameters.current.currentHP / dynamicTooltip.parameters.stats.HP) * 100}%` }} />
-                <div className="parametersHP-value">{dynamicTooltip.parameters.current.currentHP}/{dynamicTooltip.parameters.stats.HP}</div>
-              </div>
-            }
+            {dynamicTooltip.parameters && (
+              dynamicTooltip.parameters.isDestroyable ? (
+                <div className="parametersHP-bar">
+                  <div className="parametersHP-fill" style={{ width: `${(dynamicTooltip.parameters.current.currentHP / dynamicTooltip.parameters.stats.HP) * 100}%` }} />
+                  <div className="parametersHP-value">{dynamicTooltip.parameters.current.currentHP}/{dynamicTooltip.parameters.stats.HP}</div>
+                </div>
+              ) : (
+                <h2 className="dynamic-tooltip-hp-value">Невозможно разрушить</h2>
+              )
+            )}
             {dynamicTooltip.parameters &&
               <div className="dynamic-tooltip-parameters-grid">
                 {Object.entries(dynamicTooltip.parameters.stats)
