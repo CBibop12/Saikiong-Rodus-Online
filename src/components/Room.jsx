@@ -52,6 +52,7 @@ const Room = () => {
     const [messages, setMessages] = useState([]);
     const messagesEndRef = useRef(null);
     const socketRef = useRef(null); // сокет для приватного чата
+    const [messagesLoading, setMessagesLoading] = useState(false);
 
     useEffect(() => {
         document.body.classList.toggle('scroll-lock', showCharacterInfo);
@@ -102,14 +103,15 @@ const Room = () => {
             });
     }, []);
 
-    // Обновление времени каждую секунду
+    // Обновление времени каждую секунду (не тикаем во время матча, чтобы не вызывать лишние ререндеры)
     useEffect(() => {
+        if (room?.roomState === 'inProcess') return;
         const timer = setInterval(() => {
             setCurrentTime(new Date());
         }, 1000);
 
         return () => clearInterval(timer);
-    }, []);
+    }, [room?.roomState]);
 
     useEffect(() => {
         if (!roomCode) return;
@@ -228,7 +230,7 @@ const Room = () => {
 
     const loadMessages = async () => {
         try {
-            setLoading(true);
+            setMessagesLoading(true);
             const chatData = await getChat(chat._id);
             const messagesArray = Array.isArray(chatData) ? chatData : (chatData?.messages || []);
             setMessages(messagesArray);
@@ -236,7 +238,7 @@ const Room = () => {
             console.error('Ошибка загрузки сообщений:', err);
             setMessages([]);
         } finally {
-            setLoading(false);
+            setMessagesLoading(false);
         }
     };
 
@@ -314,54 +316,97 @@ const Room = () => {
     // WebSocket комнаты (основные игровые события)
     // ────────────────────────────────────────────────
 
-    // Функция для применения diff к состоянию
+    // Функция для применения diff к состоянию с минимальными копиями (structural sharing)
     const applyDiffToState = (currentState, diff) => {
-        const result = JSON.parse(JSON.stringify(currentState)); // Глубокая копия
+        if (!currentState || typeof currentState !== 'object') {
+            return currentState;
+        }
 
-        Object.keys(diff).forEach(path => {
-            const keys = path.split('.');
-            let current = result;
+        const shallowClone = (value) => {
+            if (Array.isArray(value)) return value.slice();
+            if (value && typeof value === 'object') return { ...value };
+            return value;
+        };
 
-            // Проходим по пути до предпоследнего ключа
-            for (let i = 0; i < keys.length - 1; i++) {
-                const key = keys[i];
-                if (current[key] === undefined) {
-                    current[key] = {};
+        // Начинаем с поверхностной копии корня
+        const resultRoot = shallowClone(currentState) || {};
+        const clonedPathToNode = new Map();
+        clonedPathToNode.set('', resultRoot);
+
+        const ensurePathCloned = (pathKeys) => {
+            let accPath = '';
+            let parentCloned = resultRoot;
+            let parentOriginal = currentState;
+            for (let i = 0; i < pathKeys.length; i++) {
+                const key = pathKeys[i];
+                const nextPath = accPath ? accPath + '.' + key : key;
+                if (!clonedPathToNode.has(nextPath)) {
+                    const originalChild = parentOriginal ? parentOriginal[key] : undefined;
+                    let clonedChild;
+                    if (originalChild === undefined || originalChild === null) {
+                        // Создаём контейнер для дальнейших вложений
+                        clonedChild = {};
+                    } else {
+                        clonedChild = shallowClone(originalChild);
+                    }
+                    if (parentCloned && typeof parentCloned === 'object') {
+                        parentCloned[key] = clonedChild;
+                    }
+                    clonedPathToNode.set(nextPath, clonedChild);
                 }
-                current = current[key];
+                parentCloned = clonedPathToNode.get(nextPath);
+                parentOriginal = parentOriginal ? parentOriginal[key] : undefined;
+                accPath = nextPath;
             }
+            return clonedPathToNode.get(accPath);
+        };
 
-            // Устанавливаем значение, основываясь на типе изменения
+        Object.keys(diff).forEach((path) => {
+            const change = diff[path];
+            const keys = path.split('.');
+            const parentKeys = keys.slice(0, -1);
             const lastKey = keys[keys.length - 1];
 
-            const change = diff[path]; // объект вида { type, value?, newValue? }
+            // Обеспечиваем клон всей цепочки до родителя
+            const parentNode = ensurePathCloned(parentKeys);
 
             switch (change?.type) {
                 case 'added':
-                    current[lastKey] = change.value;
+                    if (parentNode && typeof parentNode === 'object') {
+                        parentNode[lastKey] = change.value;
+                    }
                     break;
                 case 'changed':
-                    current[lastKey] = change.newValue;
+                    if (parentNode && typeof parentNode === 'object') {
+                        parentNode[lastKey] = change.newValue;
+                    }
                     break;
                 case 'deleted':
-                    delete current[lastKey];
+                    if (parentNode && typeof parentNode === 'object') {
+                        if (Array.isArray(parentNode)) {
+                            // Для массивов корректнее установить undefined или вырезать, но
+                            // поведение зависит от семантики diff. Удалим свойство.
+                            delete parentNode[lastKey];
+                        } else {
+                            delete parentNode[lastKey];
+                        }
+                    }
                     break;
                 default:
-                    // На случай неожиданных форматов применяем старое поведение
-                    current[lastKey] = change;
+                    if (parentNode && typeof parentNode === 'object') {
+                        parentNode[lastKey] = change;
+                    }
             }
         });
 
-        return result;
+        return resultRoot;
     };
 
     // Обработчик входящих событий комнаты
     const handleRoomEvent = (event) => {
         if (!event?.type) return;
 
-        if (event.type !== 'ROOM_UPDATED') {
-            console.log('Room event received:', event.type, event);
-        }
+        // Логи событий отключены для производительности
 
         switch (event.type) {
             case 'ROOM_UPDATED': {
@@ -397,21 +442,6 @@ const Room = () => {
             case 'PLAYER_JOINED': {
                 const { user: joinedUser, username, joined } = event.payload || event;
                 if (!username) break;
-
-                // Определяем наш username из токена для диагностики
-                let tokenUsername = null;
-                try {
-                    const token = localStorage.getItem('srUserToken');
-                    if (token) {
-                        const base64Url = token.split('.')[1];
-                        const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-                        const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
-                        const payload = JSON.parse(jsonPayload);
-                        tokenUsername = payload?.username || payload?.user?.username || payload?.name || payload?.sub || null;
-                    }
-                } catch { /* noop */ }
-
-                console.log('[PLAYER_JOINED] for username=', username, 'isOurUser=', tokenUsername === username, { joined, hasJoinedUser: Boolean(joinedUser) });
                 setRoom((prev) => {
                     if (!prev) return prev;
                     let participants = prev.participants || [];
@@ -424,14 +454,8 @@ const Room = () => {
                     }
                     return { ...prev, participants };
                 });
-                // Обновляем текущего пользователя только если событие относится к нам
-                if (joinedUser) {
-                    if (tokenUsername && joinedUser.username === tokenUsername) {
-                        console.log('[PLAYER_JOINED] Updating current user from self event:', joinedUser.username);
-                        setUser(joinedUser);
-                    } else {
-                        console.log('[PLAYER_JOINED] Skip updating current user. Event user=', joinedUser.username, 'token user=', tokenUsername);
-                    }
+                if (joinedUser && user?.username && joinedUser.username === user.username) {
+                    setUser(joinedUser);
                 }
                 break;
             }
@@ -579,7 +603,8 @@ const Room = () => {
                     friendUsername={chatWith.username}
                     friendAvatar={chatWith.avatar}
                     onClose={closeChatWith}
-                    currentUserId={user?._id || user?.id} />}
+                    currentUserId={user?._id || user?.id}
+                    loading={messagesLoading} />}
 
                 {room?.roomState !== 'inProcess' && (
                     <div className="top-bar">

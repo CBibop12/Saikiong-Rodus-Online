@@ -34,8 +34,26 @@ import { startingWalls } from "./scripts/building";
 import ShopDistribution from "./components/ShopDistribution";
 import { updateCreeps } from "./scripts/creaturesStore";
 import { isItMyTurn } from "./scripts/tools/simplifierStore";
+import {
+  makeMapSignature,
+  makeTeamsSignature,
+  makeObjectsSignature,
+  makeMovementKey,
+  makeAttackKey,
+  makeNearStoreKey,
+  getMovementFromCache,
+  setMovementInCache,
+  getAttackFromCache,
+  setAttackInCache,
+  getNearStoreFromCache,
+  setNearStoreInCache,
+} from "./scripts/tools/cacheStore";
 import { findCharacter, findCharacterByPosition, cellHasType, objectOnCell, endTurn, getFreeCellLines, getFreeCellsAround } from "../routes";
 import { useRoomSocket } from "../hooks/useRoomSocket";
+
+// Debug/metrics flags (toggle locally as needed)
+const DEBUG_NET = false; // лог сетевых событий
+const DEBUG_METRICS = false; // измерение времени/размера diff
 
 /**
  * ВЫНОСИМ ВНЕ КОМПОНЕНТА, чтобы она не пересоздавалась на каждом рендере
@@ -108,12 +126,7 @@ const calculateCellsZone = async (startCoord, range, roomCode, forbiddenTypes = 
     }),
   });
   // Возвращаем объект {reachable, freeCells} или создаем его из старого формата для совместимости
-  if (response.reachable && response.freeCells !== undefined) {
-    return response;
-  } else {
-    // Для совместимости со старым API
-    return { reachable: response.cells || response, freeCells: [] };
-  }
+  return response;
 };
 
 const calculateNearCells = async (coord, roomCode) => {
@@ -394,16 +407,16 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
 
     const handleMatchStateFull = (data) => {
-      console.log('Получено полное состояние от сервера:', data);
+      if (DEBUG_NET) console.log('Получено полное состояние от сервера');
       updateMatchStateLocally(data.matchState, 'full');
     };
 
     const handleUpdateConfirmed = (data) => {
-      console.log('Обновление подтверждено сервером:', data);
+      if (DEBUG_NET) console.log('Обновление подтверждено сервером');
     };
 
     const handleUpdateError = (data) => {
-      console.error('Ошибка при обновлении на сервере:', data);
+      console.error('Ошибка при обновлении на сервере:', data?.error || data);
       addActionLog(`Ошибка синхронизации: ${data.error}`, "error");
     };
 
@@ -645,14 +658,33 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   };
 
   const isSelectedNearStore = async (character) => {
+    if (!character) return null;
+    const mapSig = makeMapSignature(selectedMap);
+    const cacheKey = makeNearStoreKey({ characterName: character.name, position: character.position, mapSig });
+    const cached = getNearStoreFromCache(cacheKey);
+    if (cached !== undefined) return cached;
+
+    // Локальная проверка: смотрим 4 соседние клетки, не дергая API для каждой клетки
+    const [c, r] = splitCoordLocal(character.position, 1);
+    const neighbours = [
+      `${c}-${r - 1}`,
+      `${c + 1}-${r}`,
+      `${c}-${r + 1}`,
+      `${c - 1}-${r}`,
+    ];
+
     let storeType = null;
-    const nearCells = await calculateNearCells(character.position, roomCode);
-    for (let coord of nearCells) {
-      if (["laboratory", "armory", "magic shop"].includes(await initialOfCell(coord, roomCode))) {
-        storeType = await initialOfCell(coord, roomCode);
+    for (let coord of neighbours) {
+      const [nc, nr] = splitCoordLocal(coord, 1);
+      const cell = selectedMap?.map?.[nr]?.[nc];
+      const init = cell?.initial;
+      if (init && ["laboratory", "armory", "magic shop"].includes(init)) {
+        storeType = init;
         break;
       }
     }
+
+    setNearStoreInCache(cacheKey, storeType);
     return storeType;
   }
 
@@ -662,7 +694,16 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   }
 
   const calculateReachableCellsWithFree = async (startCoord, range) => {
+    const characterName = selectedCharacter?.name || "unknown";
+    const mapSig = makeMapSignature(selectedMap);
+    const teamsSig = makeTeamsSignature(matchState);
+    const objectsSig = makeObjectsSignature(matchState);
+    const cacheKey = makeMovementKey({ characterName, position: startCoord, range, mapSig, teamsSig, objectsSig });
+    const cached = getMovementFromCache(cacheKey);
+    if (cached) return cached;
+
     const result = await calculateCellsZone(startCoord, range, roomCode, ["red base", "blue base", "magic shop", "laboratory", "armory"], false, false, true);
+    setMovementInCache(cacheKey, result);
     return result;
   }
 
@@ -674,6 +715,14 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
   // Локальный расчёт клеток для атаки без обращения к API
   const calculateAttackableCells = async (startCoord, range, mapSize) => {
+    const characterName = selectedCharacter?.name || "unknown";
+    const mapSig = makeMapSignature(selectedMap);
+    const teamsSig = makeTeamsSignature(matchState);
+    const objectsSig = makeObjectsSignature(matchState);
+    const cacheKey = makeAttackKey({ characterName, position: startCoord, range, mapSig, teamsSig, objectsSig });
+    const cached = getAttackFromCache(cacheKey);
+    if (cached) return cached;
+
     // Возвращает «четырёхлучевую» форму длиной `range`,
     // прерываясь, если встречена стена (wall), база или объект/персонаж
 
@@ -730,13 +779,14 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       }
     }
 
+    setAttackInCache(cacheKey, attackable);
     return attackable;
   };
 
   const calculateThrowableCells = async (startCoord, range = 5, mapSize, mode = "throw") => {
-    // Определяем финальный range с учётом режима и «кустов» на старте
-    const [startX, startY] = await splitCoord(startCoord, 1);
-    const cellType = await initialOfCell([startX, startY], roomCode);
+    // Определяем финальный range с учётом режима и «кустов» на старте (локально, без API)
+    const [startX, startY] = splitCoordLocal(startCoord, 1);
+    const cellType = selectedMap?.map?.[startY]?.[startX]?.initial;
     let effectiveRange = range;
     if (cellType === "bush") {
       effectiveRange = Math.ceil(range / 2);
@@ -844,7 +894,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   const sendMatchStateDiff = (diff) => {
     if (Object.keys(diff).length === 0) return;
 
-    console.log('Отправка diff в веб-сокет:', diff);
+    if (DEBUG_NET) console.log('Отправка diff в веб-сокет');
 
     // Отправляем diff через веб-сокет
     if (gameSocket) {
@@ -951,15 +1001,15 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     }
 
     // Вычисляем diff после всех изменений
-    if (mode === 'partial' && newState && typeof newState === 'object') {
-      // В режиме partial используем исходные изменения плюс возможные изменения статуса
-      diff = deepDiff(baseline, updated);
-    } else {
-      // В режиме full делаем полное сравнение с baseline
-      diff = deepDiff(baseline, updated);
+    const t0 = DEBUG_METRICS ? performance.now() : 0;
+    diff = deepDiff(baseline, updated);
+    if (DEBUG_METRICS) {
+      const t1 = performance.now();
+      const paths = Object.keys(diff).length;
+      let size = 0;
+      try { size = JSON.stringify(diff).length; } catch { size = 0; }
+      console.debug(`[WS] deepDiff: ${Math.round(t1 - t0)} ms, paths=${paths}, size=${size} bytes`);
     }
-
-    console.log('diff', diff);
     sendMatchStateDiff(diff);
 
     setMatchState(updated);
