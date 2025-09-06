@@ -263,6 +263,20 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     });
   };
 
+  // Серверный выбор клетки респавна рядом с базой
+  const getRandomReviveCell = async (roomCode, team, fallbackCoord = null, maxRadius = 4) => {
+    const response = await apiRequest(`/api/tools/map/random-revive-cell/${roomCode}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        team,
+        maxRadius,
+        allowedTypes: ["empty", "bush", "healing zone"],
+        fallbackCoord,
+      }),
+    });
+    return response.coord;
+  };
+
   const storesCooldown = 6;
 
   // Состояния для работы с картой и персонажами (наведение, выбор)
@@ -1314,46 +1328,69 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   };
 
   const initializePlace = async (character) => {
-    // добавить логику состояния выбора места для воскрешения
-    let allyBaseCells = await allCellType(`${character.team} base`, roomCode, "object", 1)
-    let allAvailableNeighbours = []
-    const directions = [
-      [-1, -1], [-1, 0], [-1, 1],
-      [0, -1], [0, 1],
-      [1, -1], [1, 0], [1, 1]
-    ];
-    for (let baseCell of allyBaseCells) {
-      for (const [dx, dy] of directions) {
-        const newCol = baseCell.x + dx - 1;
-        const newRow = baseCell.y + dy - 1;
-        if (newCol >= 0 && newCol < selectedMap.size[0] &&
-          newRow >= 0 && newRow < selectedMap.size[1]) {
-          if (await initialOfCell([newCol, newRow], roomCode) !== `${character.team} base` && !allAvailableNeighbours.includes({ x: newCol, y: newRow })) {
-            if (!await objectOnCell([newCol, newRow], roomCode, "object") && !await findCharacterByPosition([newCol, newRow], roomCode) && !await findCharacterByPosition([newCol, newRow], roomCode)) {
-              allAvailableNeighbours.push({ x: newCol, y: newRow })
-            }
-          }
-        }
-      }
-    }
-    let randomCellIndex = await randomArrayElement(allAvailableNeighbours, "index")
-    if (allAvailableNeighbours.length > 0) {
-      return await stringFromCoord(allAvailableNeighbours[randomCellIndex])
-    }
-    else {
-      return `${character.position}`
-    }
+    // Полностью серверный выбор клетки — один запрос
+    const fallback = character.position || `${Math.ceil(selectedMap.size[0] / 2)}-${Math.ceil(selectedMap.size[1] / 2)}`;
+    console.log('[revive:initPlace] server-request', { team: character.team, fallback });
+    const coord = await getRandomReviveCell(roomCode, character.team, fallback, 4);
+    return coord;
   }
 
-  const reviveCharacter = async (characterName) => {
-    let character = { ...await findCharacter(characterName, roomCode) }
-    let initialCharacter = characters.find((char) => char.name === characterName)
-    matchState.teams[character.team].characters.splice(matchState.teams[character.team].characters.findIndex(ch => ch.name === characterName), 1)
-    let newCharacter = JSON.parse(JSON.stringify({ ...initialCharacter, position: await initializePlace(character), team: character.team, inventory: [], armoryCooldown: 0, labCooldown: 0 }))
-    matchState.teams[character.team].characters.push(newCharacter)
-    console.log(matchState.teams[character.team].characters.find(ch => ch.name === characterName));
+  const reviveCharacter = async (characterName, teamHint = null) => {
+    console.log('[revive] старт', { characterName, teamHint });
+    // Определяем команду персонажа без сетевых вызовов
+    let team = teamHint;
+    if (!team) {
+      const inRed = matchState.teams.red.characters.find((ch) => ch.name === characterName);
+      const inBlue = matchState.teams.blue.characters.find((ch) => ch.name === characterName);
+      if (inRed) team = "red";
+      else if (inBlue) team = "blue";
+      else if (Array.isArray(matchState.teams.red.latestDeath) && matchState.teams.red.latestDeath.includes(characterName)) team = "red";
+      else if (Array.isArray(matchState.teams.blue.latestDeath) && matchState.teams.blue.latestDeath.includes(characterName)) team = "blue";
+    }
+    console.log('[revive] команда определена', team);
+    if (!team) {
+      console.warn('[revive] не удалось определить команду, отменяю возрождение');
+      return;
+    }
 
-    updateMatchState()
+    const teamBucket = matchState.teams[team];
+    const idx = teamBucket.characters.findIndex((ch) => ch.name === characterName);
+    console.log('[revive] индекс персонажа в списке', idx);
+    const initialCharacter = characters.find((char) => char.name === characterName);
+    if (!initialCharacter) {
+      console.warn('[revive] нет шаблона персонажа в characters', { characterName });
+      return;
+    }
+
+    console.log('[revive] начинаю подбор клетки');
+    let place = null;
+    try {
+      place = await initializePlace({ team, position: teamBucket.characters[idx]?.position || `${Math.ceil(selectedMap.size[0] / 2)}-${Math.ceil(selectedMap.size[1] / 2)}` });
+    } catch (e) {
+      console.error('[revive] ошибка при подборе клетки', e);
+    }
+    console.log('[revive] клетка выбрана', place);
+    const newCharacter = JSON.parse(JSON.stringify({
+      ...initialCharacter,
+      position: place,
+      team,
+      inventory: [],
+      armoryCooldown: 0,
+      labCooldown: 0,
+      currentHP: (initialCharacter.stats && (initialCharacter.stats.HP || initialCharacter.stats.ХП)) || initialCharacter.baseHP || initialCharacter.currentHP || 1,
+      currentMana: (initialCharacter.stats && (initialCharacter.stats.Мана || initialCharacter.stats.Mana)) || initialCharacter.baseMana || initialCharacter.currentMana || 0,
+    }));
+    console.log('[revive] собран персонаж для вставки', { name: newCharacter.name, pos: newCharacter.position, team: newCharacter.team, HP: newCharacter.currentHP, Mana: newCharacter.currentMana });
+
+    if (idx !== -1) {
+      console.log('[revive] удаляю старую запись персонажа по индексу', idx);
+      teamBucket.characters.splice(idx, 1);
+    }
+    console.log('[revive] добавляю персонажа в список команды');
+    teamBucket.characters.push(newCharacter);
+    console.log('[revive] обновляю состояние матча');
+    updateMatchState();
+    console.log('[revive] завершено');
   }
 
   const handleAttackCharacter = (character) => {
@@ -1370,19 +1407,47 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
     if (results[0].currentHP === 0) {
       console.log("Character killed", character);
-      matchState.teams[selectedCharacter.team].gold += 500;
-      let reviveItem = matchState.teams[character.team].inventory.find((item) => item.name === "Зелье воскрешения")
-      if (reviveItem) {
-        reviveCharacter(character.name)
-        matchState.teams[character.team].inventory.splice(matchState.teams[character.team].inventory.indexOf(reviveItem), 1)
+      // Добавляем смерть в список команды погибшего
+      console.log('[revive:onKill] latestDeath(before)', matchState.teams[character.team].latestDeath);
+      let deadTeamBucket = matchState.teams[character.team].latestDeath;
+      if (deadTeamBucket === null || !Array.isArray(deadTeamBucket)) {
+        deadTeamBucket = [];
       }
-      matchState.teams[selectedCharacter.team].latestDeath = character.name;
+      deadTeamBucket.push(character.name);
+      matchState.teams[character.team].latestDeath = deadTeamBucket;
+      console.log('[revive:onKill] latestDeath(after push)', matchState.teams[character.team].latestDeath);
+      // Награда за убийство
+      matchState.teams[selectedCharacter.team].gold += 500;
+      // Сразу шлём обновление, чтобы зафиксировать смерть и золото
+      updateMatchState();
+
+      // Если на базе погибшей команды есть зелье воскрешения – немедленно воскрешаем
+      const reviveIdx = (matchState.teams[character.team].inventory || []).findIndex((item) => item.name === "Зелье воскрешения");
+      if (reviveIdx !== -1) {
+        (async () => {
+          console.log('[revive:onKill] найдено зелье в инвентаре базы, индекс', reviveIdx);
+          // Сначала тратим зелье, как по требованиям
+          matchState.teams[character.team].inventory.splice(reviveIdx, 1);
+          updateMatchState();
+          // Затем запускаем воскрешение
+          await reviveCharacter(character.name);
+          // Удаляем запись о последней смерти, если это тот же персонаж
+          const arr = matchState.teams[character.team].latestDeath;
+          if (Array.isArray(arr) && arr[arr.length - 1] === character.name) {
+            arr.pop();
+            if (arr.length === 0) matchState.teams[character.team].latestDeath = [];
+          }
+          console.log('[revive:onKill] latestDeath(after revive)', matchState.teams[character.team].latestDeath);
+          updateMatchState();
+        })();
+      }
       selectedCharacter.effects.map((effect) => {
         if (effect.byKill) {
           effect.byKill(selectedCharacter, character)
         }
       })
     }
+    console.log('[handleAttackCharacter] атака завершена', results);
     return results[0];
   };
 
@@ -1396,21 +1461,32 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     }
     if (item.name === "Зелье воскрешения") {
       if (selectedCharacter.currentMana >= item.price) {
-        if (INVENTORY_BASE_LIMIT - matchState.teams[selectedCharacter.team].inventory.length >= 1) {
-          selectedCharacter.currentMana -= item.price
-          if (matchState.teams[selectedCharacter.team].latestDeath != null) {
-            let character = matchState.teams[teamTurn].characters.find(ch => ch.name === matchState.teams[teamTurn].latestDeath);
-            const initialCharacter = characters.find((char) => char.name === character.name)
-            character = JSON.parse(JSON.stringify(initialCharacter))
-            matchState.teams[teamTurn].latestDeath = null;
-            updateMatchState();
-          }
-          else {
-            matchState.teams[selectedCharacter.team].inventory.push({ ...itemData, id: await generateId() })
-          }
+        const team = selectedCharacter.team;
+        const baseInventory = matchState.teams[team].inventory;
+        // Гарантируем массив смертей
+        if (!Array.isArray(matchState.teams[team].latestDeath)) {
+          matchState.teams[team].latestDeath = matchState.teams[team].latestDeath ? [matchState.teams[team].latestDeath] : [];
         }
-        else {
-          addActionLog("Инвентарь базы заполнен, предмет не удается разместить")
+        console.log('[revive:onBuy] старт', { team, latestDeath: matchState.teams[team].latestDeath });
+        selectedCharacter.currentMana -= item.price;
+
+        if (matchState.teams[team].latestDeath.length > 0) {
+          const lastDeadName = matchState.teams[team].latestDeath.pop();
+          if (matchState.teams[team].latestDeath.length === 0) {
+            matchState.teams[team].latestDeath = [];
+          }
+          console.log('[revive:onBuy] возрождаю', lastDeadName);
+          await reviveCharacter(lastDeadName);
+          console.log('[revive:onBuy] возрождение завершено');
+          updateMatchState();
+        } else {
+          if (INVENTORY_BASE_LIMIT - baseInventory.length >= 1) {
+            console.log('[revive:onBuy] умерших нет, кладу зелье в базовый инвентарь');
+            baseInventory.push({ ...itemData, id: await generateId() })
+            updateMatchState();
+          } else {
+            addActionLog("Инвентарь базы заполнен, предмет не удается разместить")
+          }
         }
       }
       else {
@@ -1708,11 +1784,12 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           await checkForStore(character);
         }
         else if (attackableCells.includes(character.position)) {
-          const result = handleAttackCharacter(character)[0];
+          const result = handleAttackCharacter(character);
           setAttackAnimations(prev => [...prev, {
             position: character.position,
             damageType: selectedCharacter.advancedSettings.damageType || 'физический'
           }]);
+          console.log('[handleCharacterIconCLick] атака завершена', result);
           addActionLog(`${selectedCharacter.name} атаковал ${character.name}: HP ${character.name} = ${result.currentHP}, Armor ${character.name} = ${result.currentArmor}`);
           character = JSON.parse(JSON.stringify(result.target));
           if (matchState.teams[selectedCharacter.team].remain.actions === 0) {
@@ -3335,15 +3412,28 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     if (totalDistributed === required) {
       setShowManaDistribution(false);
       if (selectedItem.name === "Зелье воскрешения") {
-        if (matchState.teams[teamTurn].latestDeath !== null) {
-          const character = matchState.teams[teamTurn].characters.find(ch => ch.name === matchState.teams[teamTurn].latestDeath);
-          character.currentHP = character.baseHP;
-          character.currentMana = character.baseMana;
-          matchState.teams[teamTurn].latestDeath = null;
-          updateMatchState();
+        // Гарантируем массив смертей
+        if (!Array.isArray(matchState.teams[teamTurn].latestDeath)) {
+          matchState.teams[teamTurn].latestDeath = matchState.teams[teamTurn].latestDeath ? [matchState.teams[teamTurn].latestDeath] : [];
+        }
+        if (matchState.teams[teamTurn].latestDeath.length > 0) {
+          const lastDeadName = matchState.teams[teamTurn].latestDeath.pop();
+          // Воскрешаем последнего погибшего
+          reviveCharacter(lastDeadName).then(() => {
+            updateMatchState();
+          });
+          if (matchState.teams[teamTurn].latestDeath.length === 0) {
+            matchState.teams[teamTurn].latestDeath = [];
+          }
+          // Зелье считается израсходованным — в инвентарь базы не кладём
         } else {
-          matchState.teams[teamTurn].inventory.push(selectedItem);
-          updateMatchState();
+          // Нет умерших – отправляем зелье в инвентарь базы, если есть место
+          if (INVENTORY_BASE_LIMIT - matchState.teams[teamTurn].inventory.length >= 1) {
+            matchState.teams[teamTurn].inventory.push(selectedItem);
+            updateMatchState();
+          } else {
+            addActionLog("Инвентарь базы заполнен, предмет не удается разместить");
+          }
         }
         handleFinalizePurchase();
       } else if (selectedItem.name === "Усиление урона") {
@@ -3377,7 +3467,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     // "Усиление урона" не добавляется в инвентарь, а сразу даёт +50 урона
     if (selectedItem?.name === "Усиление урона") {
       selectedRecipient.currentDamage += 50;
-    } else {
+    } else if (selectedItem?.name !== "Зелье воскрешения") {
       // Добавляем предмет получателю
       if (selectedRecipient && selectedItem.type === "wearable") {
         selectedRecipient.wearableItems = selectedRecipient.wearableItems || [];
@@ -3385,14 +3475,16 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         if (selectedItem.onWear) {
           selectedItem.onWear(selectedRecipient);
         }
-      } else if (selectedRecipient && selectedItem.name !== "Зелье воскрешения") {
+      } else if (selectedRecipient) {
         selectedRecipient.inventory.push(selectedItem);
       }
     }
 
     // Устанавливаем перезарядку магазина для получателя
-    const cooldownField = store === 'laboratory' ? 'labCooldown' : 'armoryCooldown';
-    selectedRecipient[cooldownField] = 6;
+    if (selectedRecipient) {
+      const cooldownField = store === 'laboratory' ? 'labCooldown' : 'armoryCooldown';
+      selectedRecipient[cooldownField] = 6;
+    }
 
     // Сбрасываем состояние
     setShowManaDistribution(false);
