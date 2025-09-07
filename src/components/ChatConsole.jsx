@@ -1065,12 +1065,22 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   useEffect(() => {
     const updateCells = async () => {
       if (pendingMode === "attack" && selectedCharacter) {
-        setReachableCells([]);
-        console.log('Calculating attackable cells for character:', selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size);
-        setAttackableCells(await calculateAttackableCells(selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size));
-        setThrowableCells([]);
-        setBuildingCells([]);
-        setFreeCells([]);
+        if (selectedCharacter.team === teamTurn) {
+          setReachableCells([]);
+          console.log('Calculating attackable cells for character:', selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size);
+          setAttackableCells(await calculateAttackableCells(selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size));
+          setThrowableCells([]);
+          setBuildingCells([]);
+          setFreeCells([]);
+        } else {
+          // Запрещаем просмотр области атаки противника: очищаем подсветку и выходим из режима атаки
+          setPendingMode(null);
+          setAttackableCells([]);
+          setReachableCells([]);
+          setThrowableCells([]);
+          setBuildingCells([]);
+          setFreeCells([]);
+        }
       }
       if (pendingMode === "move" && selectedCharacter) {
         setAttackableCells([]);
