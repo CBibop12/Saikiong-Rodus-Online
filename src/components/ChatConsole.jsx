@@ -34,8 +34,26 @@ import { startingWalls } from "./scripts/building";
 import ShopDistribution from "./components/ShopDistribution";
 import { updateCreeps } from "./scripts/creaturesStore";
 import { isItMyTurn } from "./scripts/tools/simplifierStore";
+import {
+  makeMapSignature,
+  makeTeamsSignature,
+  makeObjectsSignature,
+  makeMovementKey,
+  makeAttackKey,
+  makeNearStoreKey,
+  getMovementFromCache,
+  setMovementInCache,
+  getAttackFromCache,
+  setAttackInCache,
+  getNearStoreFromCache,
+  setNearStoreInCache,
+} from "./scripts/tools/cacheStore";
 import { findCharacter, findCharacterByPosition, cellHasType, objectOnCell, endTurn, getFreeCellLines, getFreeCellsAround } from "../routes";
 import { useRoomSocket } from "../hooks/useRoomSocket";
+
+// Debug/metrics flags (toggle locally as needed)
+const DEBUG_NET = false; // лог сетевых событий
+const DEBUG_METRICS = false; // измерение времени/размера diff
 
 /**
  * ВЫНОСИМ ВНЕ КОМПОНЕНТА, чтобы она не пересоздавалась на каждом рендере
@@ -108,12 +126,7 @@ const calculateCellsZone = async (startCoord, range, roomCode, forbiddenTypes = 
     }),
   });
   // Возвращаем объект {reachable, freeCells} или создаем его из старого формата для совместимости
-  if (response.reachable && response.freeCells !== undefined) {
-    return response;
-  } else {
-    // Для совместимости со старым API
-    return { reachable: response.cells || response, freeCells: [] };
-  }
+  return response;
 };
 
 const calculateNearCells = async (coord, roomCode) => {
@@ -210,6 +223,31 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   const [selectedAction, setSelectedAction] = useState("Взаимодействие");
   const [user, setUser] = useState(initialUser);
 
+  // Стабилизация пользователя: берём username из JWT, если проп ещё не готов
+  useEffect(() => {
+    if (user?.username) return;
+    try {
+      const token = localStorage.getItem('srUserToken');
+      if (!token) return;
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+      const payload = JSON.parse(jsonPayload);
+      const tokenUsername = payload?.username || payload?.user?.username || payload?.name || payload?.sub || null;
+      if (tokenUsername) {
+        setUser((prev) => prev?.username ? prev : { username: tokenUsername });
+      }
+    } catch { /* noop */ }
+  }, [user?.username]);
+
+  // Обновляем локального пользователя при изменении пропа
+  useEffect(() => {
+    if (!initialUser) return;
+    if (!user || initialUser?.username !== user?.username) {
+      setUser(initialUser);
+    }
+  }, [initialUser?.username]);
+
   // Локальная функция для проверки близости к базе команды
   const isNearTeamBase = (position, team) => {
     const [posCol, posRow] = position.split('-').map(Number);
@@ -223,6 +261,20 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       if (col < 1 || col > selectedMap.size[0] || row < 1 || row > selectedMap.size[1]) return false;
       return selectedMap.map[row - 1][col - 1].initial === `${team} base`;
     });
+  };
+
+  // Серверный выбор клетки респавна рядом с базой
+  const getRandomReviveCell = async (roomCode, team, fallbackCoord = null, maxRadius = 4) => {
+    const response = await apiRequest(`/api/tools/map/random-revive-cell/${roomCode}`, {
+      method: 'POST',
+      body: JSON.stringify({
+        team,
+        maxRadius,
+        allowedTypes: ["empty", "bush", "healing zone"],
+        fallbackCoord,
+      }),
+    });
+    return response.coord;
   };
 
   const storesCooldown = 6;
@@ -351,8 +403,16 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       setMatchState(initialMatchState);
       setMatchStateCheckpoint(deepClone(initialMatchState));
     }
-    setIsMyTurn(isItMyTurn(user, room, teamTurn));
   }, [initialMatchState]);
+
+  // Пересчитываем «мой ход» когда готовы user/room/teamTurn
+  useEffect(() => {
+    if (!user?.username || !room || teamTurn == null || !matchState) return;
+    const currentPlayer = matchState?.teams?.[teamTurn]?.player;
+    const me = user?.username || initialUser?.username;
+    const myTurn = Boolean(currentPlayer && me && currentPlayer === me);
+    if (isMyTurn !== myTurn) setIsMyTurn(myTurn);
+  }, [user?.username, room?._id, teamTurn, matchState?.teams?.red?.player, matchState?.teams?.blue?.player]);
 
   // Эффект для обработки входящих diff-ов от сервера
   useEffect(() => {
@@ -361,16 +421,16 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
 
     const handleMatchStateFull = (data) => {
-      console.log('Получено полное состояние от сервера:', data);
+      if (DEBUG_NET) console.log('Получено полное состояние от сервера');
       updateMatchStateLocally(data.matchState, 'full');
     };
 
     const handleUpdateConfirmed = (data) => {
-      console.log('Обновление подтверждено сервером:', data);
+      if (DEBUG_NET) console.log('Обновление подтверждено сервером');
     };
 
     const handleUpdateError = (data) => {
-      console.error('Ошибка при обновлении на сервере:', data);
+      console.error('Ошибка при обновлении на сервере:', data?.error || data);
       addActionLog(`Ошибка синхронизации: ${data.error}`, "error");
     };
 
@@ -550,6 +610,10 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   };
 
   const calculateCastingAllowance = (cell) => {
+    // Если луч/зона уже закреплены, запрещаем пересчёт при наведении
+    if (beamSelectionMode && beamFixed) return false;
+    if (zoneSelectionMode && zoneFixed) return false;
+
     // Если включён режим выбора точки, используем pendingPointEffect
     if (pointSelectionMode && pendingPointEffect) {
       return pointCells.includes(cell);
@@ -562,7 +626,8 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     const [startCol, startRow] = splitCoordLocal(effect.caster.position);
     const [pointX, pointY] = splitCoordLocal(cell);
 
-    if (effect.type === "Луч" && !beamFixed) {
+    if (effect.type === "Луч") {
+      if (beamFixed) return false;
       // Нельзя направлять луч в ту же клетку, что и персонаж
       if (pointX === startCol && pointY === startRow) return false;
 
@@ -612,14 +677,33 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   };
 
   const isSelectedNearStore = async (character) => {
+    if (!character) return null;
+    const mapSig = makeMapSignature(selectedMap);
+    const cacheKey = makeNearStoreKey({ characterName: character.name, position: character.position, mapSig });
+    const cached = getNearStoreFromCache(cacheKey);
+    if (cached !== undefined) return cached;
+
+    // Локальная проверка: смотрим 4 соседние клетки, не дергая API для каждой клетки
+    const [c, r] = splitCoordLocal(character.position, 1);
+    const neighbours = [
+      `${c}-${r - 1}`,
+      `${c + 1}-${r}`,
+      `${c}-${r + 1}`,
+      `${c - 1}-${r}`,
+    ];
+
     let storeType = null;
-    const nearCells = await calculateNearCells(character.position, roomCode);
-    for (let coord of nearCells) {
-      if (["laboratory", "armory", "magic shop"].includes(await initialOfCell(coord, roomCode))) {
-        storeType = await initialOfCell(coord, roomCode);
+    for (let coord of neighbours) {
+      const [nc, nr] = splitCoordLocal(coord, 1);
+      const cell = selectedMap?.map?.[nr]?.[nc];
+      const init = cell?.initial;
+      if (init && ["laboratory", "armory", "magic shop"].includes(init)) {
+        storeType = init;
         break;
       }
     }
+
+    setNearStoreInCache(cacheKey, storeType);
     return storeType;
   }
 
@@ -629,7 +713,16 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   }
 
   const calculateReachableCellsWithFree = async (startCoord, range) => {
+    const characterName = selectedCharacter?.name || "unknown";
+    const mapSig = makeMapSignature(selectedMap);
+    const teamsSig = makeTeamsSignature(matchState);
+    const objectsSig = makeObjectsSignature(matchState);
+    const cacheKey = makeMovementKey({ characterName, position: startCoord, range, mapSig, teamsSig, objectsSig });
+    const cached = getMovementFromCache(cacheKey);
+    if (cached) return cached;
+
     const result = await calculateCellsZone(startCoord, range, roomCode, ["red base", "blue base", "magic shop", "laboratory", "armory"], false, false, true);
+    setMovementInCache(cacheKey, result);
     return result;
   }
 
@@ -641,6 +734,14 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
   // Локальный расчёт клеток для атаки без обращения к API
   const calculateAttackableCells = async (startCoord, range, mapSize) => {
+    const characterName = selectedCharacter?.name || "unknown";
+    const mapSig = makeMapSignature(selectedMap);
+    const teamsSig = makeTeamsSignature(matchState);
+    const objectsSig = makeObjectsSignature(matchState);
+    const cacheKey = makeAttackKey({ characterName, position: startCoord, range, mapSig, teamsSig, objectsSig });
+    const cached = getAttackFromCache(cacheKey);
+    if (cached) return cached;
+
     // Возвращает «четырёхлучевую» форму длиной `range`,
     // прерываясь, если встречена стена (wall), база или объект/персонаж
 
@@ -697,13 +798,14 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       }
     }
 
+    setAttackInCache(cacheKey, attackable);
     return attackable;
   };
 
   const calculateThrowableCells = async (startCoord, range = 5, mapSize, mode = "throw") => {
-    // Определяем финальный range с учётом режима и «кустов» на старте
-    const [startX, startY] = await splitCoord(startCoord, 1);
-    const cellType = await initialOfCell([startX, startY], roomCode);
+    // Определяем финальный range с учётом режима и «кустов» на старте (локально, без API)
+    const [startX, startY] = splitCoordLocal(startCoord, 1);
+    const cellType = selectedMap?.map?.[startY]?.[startX]?.initial;
     let effectiveRange = range;
     if (cellType === "bush") {
       effectiveRange = Math.ceil(range / 2);
@@ -811,7 +913,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   const sendMatchStateDiff = (diff) => {
     if (Object.keys(diff).length === 0) return;
 
-    console.log('Отправка diff в веб-сокет:', diff);
+    if (DEBUG_NET) console.log('Отправка diff в веб-сокет');
 
     // Отправляем diff через веб-сокет
     if (gameSocket) {
@@ -918,15 +1020,15 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     }
 
     // Вычисляем diff после всех изменений
-    if (mode === 'partial' && newState && typeof newState === 'object') {
-      // В режиме partial используем исходные изменения плюс возможные изменения статуса
-      diff = deepDiff(baseline, updated);
-    } else {
-      // В режиме full делаем полное сравнение с baseline
-      diff = deepDiff(baseline, updated);
+    const t0 = DEBUG_METRICS ? performance.now() : 0;
+    diff = deepDiff(baseline, updated);
+    if (DEBUG_METRICS) {
+      const t1 = performance.now();
+      const paths = Object.keys(diff).length;
+      let size = 0;
+      try { size = JSON.stringify(diff).length; } catch { size = 0; }
+      console.debug(`[WS] deepDiff: ${Math.round(t1 - t0)} ms, paths=${paths}, size=${size} bytes`);
     }
-
-    console.log('diff', diff);
     sendMatchStateDiff(diff);
 
     setMatchState(updated);
@@ -963,12 +1065,22 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   useEffect(() => {
     const updateCells = async () => {
       if (pendingMode === "attack" && selectedCharacter) {
-        setReachableCells([]);
-        console.log('Calculating attackable cells for character:', selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size);
-        setAttackableCells(await calculateAttackableCells(selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size));
-        setThrowableCells([]);
-        setBuildingCells([]);
-        setFreeCells([]);
+        if (selectedCharacter.team === teamTurn) {
+          setReachableCells([]);
+          console.log('Calculating attackable cells for character:', selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size);
+          setAttackableCells(await calculateAttackableCells(selectedCharacter.position, selectedCharacter.currentRange, selectedMap.size));
+          setThrowableCells([]);
+          setBuildingCells([]);
+          setFreeCells([]);
+        } else {
+          // Запрещаем просмотр области атаки противника: очищаем подсветку и выходим из режима атаки
+          setPendingMode(null);
+          setAttackableCells([]);
+          setReachableCells([]);
+          setThrowableCells([]);
+          setBuildingCells([]);
+          setFreeCells([]);
+        }
       }
       if (pendingMode === "move" && selectedCharacter) {
         setAttackableCells([]);
@@ -1053,8 +1165,8 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       case 'healing zone': return `${baseClass} healing-zone`;
       case 'red portal': return `${baseClass} red-portal-cover`;
       case 'blue portal': return `${baseClass} blue-portal-cover`;
-      case 'red church': return `${baseClass} ${churchClass}-cover`;
-      case 'blue church': return `${baseClass} ${churchClass}-cover`;
+      case 'red church': return `${baseClass} empty`;
+      case 'blue church': return `${baseClass} empty`;
       case 'redChurch powerpoint': return `${baseClass} red-church-powerpoint`;
       case 'blueChurch powerpoint': return `${baseClass} blue-church-powerpoint`;
       case 'mob spawnpoint': return `${baseClass} mob-spawnpoint`;
@@ -1231,46 +1343,69 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   };
 
   const initializePlace = async (character) => {
-    // добавить логику состояния выбора места для воскрешения
-    let allyBaseCells = await allCellType(`${character.team} base`, roomCode, "object", 1)
-    let allAvailableNeighbours = []
-    const directions = [
-      [-1, -1], [-1, 0], [-1, 1],
-      [0, -1], [0, 1],
-      [1, -1], [1, 0], [1, 1]
-    ];
-    for (let baseCell of allyBaseCells) {
-      for (const [dx, dy] of directions) {
-        const newCol = baseCell.x + dx - 1;
-        const newRow = baseCell.y + dy - 1;
-        if (newCol >= 0 && newCol < selectedMap.size[0] &&
-          newRow >= 0 && newRow < selectedMap.size[1]) {
-          if (await initialOfCell([newCol, newRow], roomCode) !== `${character.team} base` && !allAvailableNeighbours.includes({ x: newCol, y: newRow })) {
-            if (!await objectOnCell([newCol, newRow], roomCode, "object") && !await findCharacterByPosition([newCol, newRow], roomCode) && !await findCharacterByPosition([newCol, newRow], roomCode)) {
-              allAvailableNeighbours.push({ x: newCol, y: newRow })
-            }
-          }
-        }
-      }
-    }
-    let randomCellIndex = await randomArrayElement(allAvailableNeighbours, "index")
-    if (allAvailableNeighbours.length > 0) {
-      return await stringFromCoord(allAvailableNeighbours[randomCellIndex])
-    }
-    else {
-      return `${character.position}`
-    }
+    // Полностью серверный выбор клетки — один запрос
+    const fallback = character.position || `${Math.ceil(selectedMap.size[0] / 2)}-${Math.ceil(selectedMap.size[1] / 2)}`;
+    console.log('[revive:initPlace] server-request', { team: character.team, fallback });
+    const coord = await getRandomReviveCell(roomCode, character.team, fallback, 4);
+    return coord;
   }
 
-  const reviveCharacter = async (characterName) => {
-    let character = { ...await findCharacter(characterName, roomCode) }
-    let initialCharacter = characters.find((char) => char.name === characterName)
-    matchState.teams[character.team].characters.splice(matchState.teams[character.team].characters.findIndex(ch => ch.name === characterName), 1)
-    let newCharacter = JSON.parse(JSON.stringify({ ...initialCharacter, position: await initializePlace(character), team: character.team, inventory: [], armoryCooldown: 0, labCooldown: 0 }))
-    matchState.teams[character.team].characters.push(newCharacter)
-    console.log(matchState.teams[character.team].characters.find(ch => ch.name === characterName));
+  const reviveCharacter = async (characterName, teamHint = null) => {
+    console.log('[revive] старт', { characterName, teamHint });
+    // Определяем команду персонажа без сетевых вызовов
+    let team = teamHint;
+    if (!team) {
+      const inRed = matchState.teams.red.characters.find((ch) => ch.name === characterName);
+      const inBlue = matchState.teams.blue.characters.find((ch) => ch.name === characterName);
+      if (inRed) team = "red";
+      else if (inBlue) team = "blue";
+      else if (Array.isArray(matchState.teams.red.latestDeath) && matchState.teams.red.latestDeath.includes(characterName)) team = "red";
+      else if (Array.isArray(matchState.teams.blue.latestDeath) && matchState.teams.blue.latestDeath.includes(characterName)) team = "blue";
+    }
+    console.log('[revive] команда определена', team);
+    if (!team) {
+      console.warn('[revive] не удалось определить команду, отменяю возрождение');
+      return;
+    }
 
-    updateMatchState()
+    const teamBucket = matchState.teams[team];
+    const idx = teamBucket.characters.findIndex((ch) => ch.name === characterName);
+    console.log('[revive] индекс персонажа в списке', idx);
+    const initialCharacter = characters.find((char) => char.name === characterName);
+    if (!initialCharacter) {
+      console.warn('[revive] нет шаблона персонажа в characters', { characterName });
+      return;
+    }
+
+    console.log('[revive] начинаю подбор клетки');
+    let place = null;
+    try {
+      place = await initializePlace({ team, position: teamBucket.characters[idx]?.position || `${Math.ceil(selectedMap.size[0] / 2)}-${Math.ceil(selectedMap.size[1] / 2)}` });
+    } catch (e) {
+      console.error('[revive] ошибка при подборе клетки', e);
+    }
+    console.log('[revive] клетка выбрана', place);
+    const newCharacter = JSON.parse(JSON.stringify({
+      ...initialCharacter,
+      position: place,
+      team,
+      inventory: [],
+      armoryCooldown: 0,
+      labCooldown: 0,
+      currentHP: (initialCharacter.stats && (initialCharacter.stats.HP || initialCharacter.stats.ХП)) || initialCharacter.baseHP || initialCharacter.currentHP || 1,
+      currentMana: (initialCharacter.stats && (initialCharacter.stats.Мана || initialCharacter.stats.Mana)) || initialCharacter.baseMana || initialCharacter.currentMana || 0,
+    }));
+    console.log('[revive] собран персонаж для вставки', { name: newCharacter.name, pos: newCharacter.position, team: newCharacter.team, HP: newCharacter.currentHP, Mana: newCharacter.currentMana });
+
+    if (idx !== -1) {
+      console.log('[revive] удаляю старую запись персонажа по индексу', idx);
+      teamBucket.characters.splice(idx, 1);
+    }
+    console.log('[revive] добавляю персонажа в список команды');
+    teamBucket.characters.push(newCharacter);
+    console.log('[revive] обновляю состояние матча');
+    updateMatchState();
+    console.log('[revive] завершено');
   }
 
   const handleAttackCharacter = (character) => {
@@ -1287,19 +1422,47 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
     if (results[0].currentHP === 0) {
       console.log("Character killed", character);
-      matchState.teams[selectedCharacter.team].gold += 500;
-      let reviveItem = matchState.teams[character.team].inventory.find((item) => item.name === "Зелье воскрешения")
-      if (reviveItem) {
-        reviveCharacter(character.name)
-        matchState.teams[character.team].inventory.splice(matchState.teams[character.team].inventory.indexOf(reviveItem), 1)
+      // Добавляем смерть в список команды погибшего
+      console.log('[revive:onKill] latestDeath(before)', matchState.teams[character.team].latestDeath);
+      let deadTeamBucket = matchState.teams[character.team].latestDeath;
+      if (deadTeamBucket === null || !Array.isArray(deadTeamBucket)) {
+        deadTeamBucket = [];
       }
-      matchState.teams[selectedCharacter.team].latestDeath = character.name;
+      deadTeamBucket.push(character.name);
+      matchState.teams[character.team].latestDeath = deadTeamBucket;
+      console.log('[revive:onKill] latestDeath(after push)', matchState.teams[character.team].latestDeath);
+      // Награда за убийство
+      matchState.teams[selectedCharacter.team].gold += 500;
+      // Сразу шлём обновление, чтобы зафиксировать смерть и золото
+      updateMatchState();
+
+      // Если на базе погибшей команды есть зелье воскрешения – немедленно воскрешаем
+      const reviveIdx = (matchState.teams[character.team].inventory || []).findIndex((item) => item.name === "Зелье воскрешения");
+      if (reviveIdx !== -1) {
+        (async () => {
+          console.log('[revive:onKill] найдено зелье в инвентаре базы, индекс', reviveIdx);
+          // Сначала тратим зелье, как по требованиям
+          matchState.teams[character.team].inventory.splice(reviveIdx, 1);
+          updateMatchState();
+          // Затем запускаем воскрешение
+          await reviveCharacter(character.name);
+          // Удаляем запись о последней смерти, если это тот же персонаж
+          const arr = matchState.teams[character.team].latestDeath;
+          if (Array.isArray(arr) && arr[arr.length - 1] === character.name) {
+            arr.pop();
+            if (arr.length === 0) matchState.teams[character.team].latestDeath = [];
+          }
+          console.log('[revive:onKill] latestDeath(after revive)', matchState.teams[character.team].latestDeath);
+          updateMatchState();
+        })();
+      }
       selectedCharacter.effects.map((effect) => {
         if (effect.byKill) {
           effect.byKill(selectedCharacter, character)
         }
       })
     }
+    console.log('[handleAttackCharacter] атака завершена', results);
     return results[0];
   };
 
@@ -1313,21 +1476,32 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     }
     if (item.name === "Зелье воскрешения") {
       if (selectedCharacter.currentMana >= item.price) {
-        if (INVENTORY_BASE_LIMIT - matchState.teams[selectedCharacter.team].inventory.length >= 1) {
-          selectedCharacter.currentMana -= item.price
-          if (matchState.teams[selectedCharacter.team].latestDeath != null) {
-            let character = matchState.teams[teamTurn].characters.find(ch => ch.name === matchState.teams[teamTurn].latestDeath);
-            const initialCharacter = characters.find((char) => char.name === character.name)
-            character = JSON.parse(JSON.stringify(initialCharacter))
-            matchState.teams[teamTurn].latestDeath = null;
-            updateMatchState();
-          }
-          else {
-            matchState.teams[selectedCharacter.team].inventory.push({ ...itemData, id: await generateId() })
-          }
+        const team = selectedCharacter.team;
+        const baseInventory = matchState.teams[team].inventory;
+        // Гарантируем массив смертей
+        if (!Array.isArray(matchState.teams[team].latestDeath)) {
+          matchState.teams[team].latestDeath = matchState.teams[team].latestDeath ? [matchState.teams[team].latestDeath] : [];
         }
-        else {
-          addActionLog("Инвентарь базы заполнен, предмет не удается разместить")
+        console.log('[revive:onBuy] старт', { team, latestDeath: matchState.teams[team].latestDeath });
+        selectedCharacter.currentMana -= item.price;
+
+        if (matchState.teams[team].latestDeath.length > 0) {
+          const lastDeadName = matchState.teams[team].latestDeath.pop();
+          if (matchState.teams[team].latestDeath.length === 0) {
+            matchState.teams[team].latestDeath = [];
+          }
+          console.log('[revive:onBuy] возрождаю', lastDeadName);
+          await reviveCharacter(lastDeadName);
+          console.log('[revive:onBuy] возрождение завершено');
+          updateMatchState();
+        } else {
+          if (INVENTORY_BASE_LIMIT - baseInventory.length >= 1) {
+            console.log('[revive:onBuy] умерших нет, кладу зелье в базовый инвентарь');
+            baseInventory.push({ ...itemData, id: await generateId() })
+            updateMatchState();
+          } else {
+            addActionLog("Инвентарь базы заполнен, предмет не удается разместить")
+          }
         }
       }
       else {
@@ -1625,11 +1799,12 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           await checkForStore(character);
         }
         else if (attackableCells.includes(character.position)) {
-          const result = handleAttackCharacter(character)[0];
+          const result = handleAttackCharacter(character);
           setAttackAnimations(prev => [...prev, {
             position: character.position,
             damageType: selectedCharacter.advancedSettings.damageType || 'физический'
           }]);
+          console.log('[handleCharacterIconCLick] атака завершена', result);
           addActionLog(`${selectedCharacter.name} атаковал ${character.name}: HP ${character.name} = ${result.currentHP}, Armor ${character.name} = ${result.currentArmor}`);
           character = JSON.parse(JSON.stringify(result.target));
           if (matchState.teams[selectedCharacter.team].remain.actions === 0) {
@@ -1747,6 +1922,8 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         });
       }
     } else {
+      console.log(coordinates);
+      console.log(matchState.objectsOnMap.find(obj => obj.position === coordinates));
       if (matchState.objectsOnMap.find(obj => obj.position === coordinates)) {
         if (dynamicTooltip && dynamicTooltip.coordinates === coordinates) {
           if (pendingMode === "attack") {
@@ -1771,6 +1948,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                   description: object.description,
                   parameters: object.type === "building" ? {
                     stats: object.stats,
+                    isDestroyable: (object.isDestroyable !== undefined ? object.isDestroyable : true),
                     current: {
                       currentHP: object.currentHP,
                       currentAgility: object.currentAgility,
@@ -1813,6 +1991,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
             description: object.description,
             parameters: object.type === "building" ? {
               stats: object.stats,
+              isDestroyable: (object.isDestroyable !== undefined ? object.isDestroyable : true),
               current: {
                 currentHP: object.currentHP,
                 currentAgility: object.currentAgility,
@@ -1913,6 +2092,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                 description: object.description,
                 parameters: object.type === "building" ? {
                   stats: object.stats,
+                  isDestroyable: (object.isDestroyable !== undefined ? object.isDestroyable : true),
                   current: {
                     currentHP: object.currentHP,
                     currentAgility: object.currentAgility,
@@ -3247,15 +3427,28 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     if (totalDistributed === required) {
       setShowManaDistribution(false);
       if (selectedItem.name === "Зелье воскрешения") {
-        if (matchState.teams[teamTurn].latestDeath !== null) {
-          const character = matchState.teams[teamTurn].characters.find(ch => ch.name === matchState.teams[teamTurn].latestDeath);
-          character.currentHP = character.baseHP;
-          character.currentMana = character.baseMana;
-          matchState.teams[teamTurn].latestDeath = null;
-          updateMatchState();
+        // Гарантируем массив смертей
+        if (!Array.isArray(matchState.teams[teamTurn].latestDeath)) {
+          matchState.teams[teamTurn].latestDeath = matchState.teams[teamTurn].latestDeath ? [matchState.teams[teamTurn].latestDeath] : [];
+        }
+        if (matchState.teams[teamTurn].latestDeath.length > 0) {
+          const lastDeadName = matchState.teams[teamTurn].latestDeath.pop();
+          // Воскрешаем последнего погибшего
+          reviveCharacter(lastDeadName).then(() => {
+            updateMatchState();
+          });
+          if (matchState.teams[teamTurn].latestDeath.length === 0) {
+            matchState.teams[teamTurn].latestDeath = [];
+          }
+          // Зелье считается израсходованным — в инвентарь базы не кладём
         } else {
-          matchState.teams[teamTurn].inventory.push(selectedItem);
-          updateMatchState();
+          // Нет умерших – отправляем зелье в инвентарь базы, если есть место
+          if (INVENTORY_BASE_LIMIT - matchState.teams[teamTurn].inventory.length >= 1) {
+            matchState.teams[teamTurn].inventory.push(selectedItem);
+            updateMatchState();
+          } else {
+            addActionLog("Инвентарь базы заполнен, предмет не удается разместить");
+          }
         }
         handleFinalizePurchase();
       } else if (selectedItem.name === "Усиление урона") {
@@ -3289,7 +3482,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     // "Усиление урона" не добавляется в инвентарь, а сразу даёт +50 урона
     if (selectedItem?.name === "Усиление урона") {
       selectedRecipient.currentDamage += 50;
-    } else {
+    } else if (selectedItem?.name !== "Зелье воскрешения") {
       // Добавляем предмет получателю
       if (selectedRecipient && selectedItem.type === "wearable") {
         selectedRecipient.wearableItems = selectedRecipient.wearableItems || [];
@@ -3297,14 +3490,16 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         if (selectedItem.onWear) {
           selectedItem.onWear(selectedRecipient);
         }
-      } else if (selectedRecipient && selectedItem.name !== "Зелье воскрешения") {
+      } else if (selectedRecipient) {
         selectedRecipient.inventory.push(selectedItem);
       }
     }
 
     // Устанавливаем перезарядку магазина для получателя
-    const cooldownField = store === 'laboratory' ? 'labCooldown' : 'armoryCooldown';
-    selectedRecipient[cooldownField] = 6;
+    if (selectedRecipient) {
+      const cooldownField = store === 'laboratory' ? 'labCooldown' : 'armoryCooldown';
+      selectedRecipient[cooldownField] = 6;
+    }
 
     // Сбрасываем состояние
     setShowManaDistribution(false);
@@ -4192,15 +4387,21 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         {dynamicTooltip && (
           <div className="dynamic-tooltip">
             <div className="dynamic-tooltip-image-container">
-              <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
+              {dynamicTooltip.image && (
+                <img src={`https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/items/${dynamicTooltip.image}`} alt={dynamicTooltip.title} className="dynamic-tooltip-image" />
+              )}
             </div>
             <h5 className="dynamic-tooltip-title">{dynamicTooltip.title}</h5>
-            {dynamicTooltip.parameters &&
-              <div className="parametersHP-bar">
-                <div className="parametersHP-fill" style={{ width: `${(dynamicTooltip.parameters.current.currentHP / dynamicTooltip.parameters.stats.HP) * 100}%` }} />
-                <div className="parametersHP-value">{dynamicTooltip.parameters.current.currentHP}/{dynamicTooltip.parameters.stats.HP}</div>
-              </div>
-            }
+            {dynamicTooltip.parameters && (
+              dynamicTooltip.parameters.isDestroyable ? (
+                <div className="parametersHP-bar">
+                  <div className="parametersHP-fill" style={{ width: `${(dynamicTooltip.parameters.current.currentHP / dynamicTooltip.parameters.stats.HP) * 100}%` }} />
+                  <div className="parametersHP-value">{dynamicTooltip.parameters.current.currentHP}/{dynamicTooltip.parameters.stats.HP}</div>
+                </div>
+              ) : (
+                <h2 className="dynamic-tooltip-hp-value">Невозможно разрушить</h2>
+              )
+            )}
             {dynamicTooltip.parameters &&
               <div className="dynamic-tooltip-parameters-grid">
                 {Object.entries(dynamicTooltip.parameters.stats)
