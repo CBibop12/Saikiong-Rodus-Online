@@ -610,6 +610,10 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   };
 
   const calculateCastingAllowance = (cell) => {
+    // Если луч/зона уже закреплены, запрещаем пересчёт при наведении
+    if (beamSelectionMode && beamFixed) return false;
+    if (zoneSelectionMode && zoneFixed) return false;
+
     // Если включён режим выбора точки, используем pendingPointEffect
     if (pointSelectionMode && pendingPointEffect) {
       return pointCells.includes(cell);
@@ -622,7 +626,8 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     const [startCol, startRow] = splitCoordLocal(effect.caster.position);
     const [pointX, pointY] = splitCoordLocal(cell);
 
-    if (effect.type === "Луч" && !beamFixed) {
+    if (effect.type === "Луч") {
+      if (beamFixed) return false;
       // Нельзя направлять луч в ту же клетку, что и персонаж
       if (pointX === startCol && pointY === startRow) return false;
 
