@@ -6,10 +6,10 @@ export default defineConfig({
   plugins: [react()],
   server: {
     proxy: {
-      '/auth': 'https://sr-game-backend-32667b36f309.herokuapp.com',
-      '/rooms': 'https://sr-game-backend-32667b36f309.herokuapp.com',
-      '/api':   'https://sr-game-backend-32667b36f309.herokuapp.com',
-      '/users': 'https://sr-game-backend-32667b36f309.herokuapp.com',
+      '/auth': 'https://saikiong-rodus-08b1dee9bafb.herokuapp.com',
+      '/rooms': 'https://saikiong-rodus-08b1dee9bafb.herokuapp.com',
+      '/api': 'https://saikiong-rodus-08b1dee9bafb.herokuapp.com',
+      '/users': 'https://saikiong-rodus-08b1dee9bafb.herokuapp.com',
     }
   }
 })

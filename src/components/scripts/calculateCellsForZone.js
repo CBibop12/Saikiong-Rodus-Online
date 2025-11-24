@@ -73,3 +73,62 @@ export function calculateCellsForZone(centerCoord, movementRange, mapSize) {
 
   return resultCells;
 }
+
+/**
+ * Возвращает массив клеток по форме и радиусу/размерам.
+ * shape: "romb" (по умолчанию), "circle", "rectangle", "cross".
+ */
+export function getCellsForShape(centerCoord, shape = "romb", stats = {}, mapSize) {
+  const radius = stats.rangeOfObject ?? stats.radius ?? 1;
+  if (shape === "romb") return calculateCellsForZone(centerCoord, radius, mapSize);
+  if (shape === "circle") return calculateCellsForZoneCircle(centerCoord, radius, mapSize);
+  if (shape === "rectangle") return calculateCellsForZoneRectangle(centerCoord, stats.rangeWidth || 1, stats.rangeHeight || 1, mapSize);
+  if (shape === "cross") return calculateCellsForZoneCross(centerCoord, radius, mapSize);
+  return calculateCellsForZone(centerCoord, radius, mapSize);
+}
+
+export function calculateCellsForZoneCircle(centerCoord, radius, mapSize) {
+  const [cx, cy] = centerCoord.split("-").map(Number);
+  const cols = mapSize[0];
+  const rows = mapSize[1];
+  const res = [];
+  const r2 = radius * radius;
+  for (let y = Math.max(1, cy - radius); y <= Math.min(rows, cy + radius); y++) {
+    for (let x = Math.max(1, cx - radius); x <= Math.min(cols, cx + radius); x++) {
+      const dx = x - cx;
+      const dy = y - cy;
+      if (dx * dx + dy * dy <= r2) res.push(`${x}-${y}`);
+    }
+  }
+  return res;
+}
+
+export function calculateCellsForZoneRectangle(centerCoord, width, height, mapSize) {
+  const [cx, cy] = centerCoord.split("-").map(Number);
+  const cols = mapSize[0];
+  const rows = mapSize[1];
+  const halfW = Math.floor(Math.max(1, Number(width)) / 2);
+  const halfH = Math.floor(Math.max(1, Number(height)) / 2);
+  const res = [];
+  for (let y = Math.max(1, cy - halfH); y <= Math.min(rows, cy + halfH); y++) {
+    for (let x = Math.max(1, cx - halfW); x <= Math.min(cols, cx + halfW); x++) {
+      res.push(`${x}-${y}`);
+    }
+  }
+  return res;
+}
+
+export function calculateCellsForZoneCross(centerCoord, radius, mapSize) {
+  const [cx, cy] = centerCoord.split("-").map(Number);
+  const cols = mapSize[0];
+  const rows = mapSize[1];
+  const res = new Set([`${cx}-${cy}`]);
+  for (let d = 1; d <= radius; d++) {
+    if (cx + d <= cols) res.add(`${cx + d}-${cy}`);
+    if (cx - d >= 1) res.add(`${cx - d}-${cy}`);
+    if (cy + d <= rows) res.add(`${cx}-${cy + d}`);
+    if (cy - d >= 1) res.add(`${cx}-${cy - d}`);
+  }
+  return [...res];
+}
+

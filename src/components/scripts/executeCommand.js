@@ -112,6 +112,7 @@ import { calculateCellsForZone } from "./calculateCellsForZone";
 import { attack } from "./attack";
 import { build } from "./building.js";
 import { generateId } from "./tools/simplifierStore.js";
+import ZoneEffectsManager from "./zoneEffectsManager";
 
 // Функция для обработки команды
 const executeCommand = (object, context) => {
@@ -791,16 +792,50 @@ const executeCommand = (object, context) => {
           break;
         }
         case "Размещение области с эффектом зоны": {
-          // Выбираем место установки «постройки»
-          setZoneSelectionMode(true);
-          setPendingZoneEffect({
-            ...abilityObj,
-            caster,
-            isZonePlacement: true,
-          });
-          addActionLog(
-            `${characterName} выбирает клетку для размещения области "${abilityObj.name}".`
-          );
+          // Если зона динамическая — создаём сразу вокруг кастера и привязываем к нему
+          if (abilityObj.coordinates === "dynamic") {
+            // Бэкенд добавляет zoneEffects на новых комнатах; на старых – инициализируем здесь
+            if (!Array.isArray(matchState.zoneEffects)) {
+              matchState.zoneEffects = [];
+            }
+            const zm = new ZoneEffectsManager(matchState, selectedMap, addActionLog);
+            zm.createZone({
+              name: abilityObj.name,
+              affiliate: abilityObj.affiliate || "neutral",
+              stats: abilityObj.stats || {},
+              turnsRemain: abilityObj.turnsRemain || 1,
+              coordinates: "dynamic",
+              chase: abilityObj.chase || "self",
+              caster,
+              center: caster.position,
+              zoneEffect: abilityObj.zoneEffect,
+            });
+
+            matchState.teams[caster.team].remain.actions -= 1;
+            console.log(
+              `${characterName} создаёт зону эффекта "${abilityObj.name}" вокруг себя`
+            );
+            // Синхронизация состояния (чтобы у обоих клиентов и на сервере появилась зона и расходовалась способность)
+            updateMatchState({
+              zoneEffects: matchState.zoneEffects,
+              teams: matchState.teams,
+            }, 'partial');
+          } else {
+            // Иначе — выбор клетки пользователем
+            setZoneSelectionMode(true);
+            setPendingZoneEffect({
+              ...abilityObj,
+              caster,
+              isZonePlacement: true,
+            });
+            console.log(
+              `${characterName} выбирает клетку для размещения области "${abilityObj.name}".`
+            );
+          }
+          break;
+        }
+        case "Бросок предмета": {
+          // Логика бросков предметов обрабатывается через UI (ThrowConfirm) и data.js
           break;
         }
         case "Точечное накладывание эффекта":

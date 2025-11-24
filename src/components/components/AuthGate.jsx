@@ -5,7 +5,7 @@ import axios from 'axios';
 import { popTokenFromUrl } from '../../utils/tokenFromUrl';
 import PropTypes from 'prop-types';
 
-const API_BASE = import.meta.env.VITE_API_BASE || 'https://sr-game-backend-32667b36f309.herokuapp.com';
+const API_BASE = import.meta.env.VITE_API_BASE || 'https://saikiong-rodus-08b1dee9bafb.herokuapp.com';
 
 export default function AuthGate({ children }) {
   const navigate = useNavigate();

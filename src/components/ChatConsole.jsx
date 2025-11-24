@@ -21,6 +21,7 @@ import Teams from "./components/Teams";
 import executeCommand from "./scripts/executeCommand";
 import ContextMenu from "./components/ContextMenu";
 import EffectsManager from "./scripts/effectsManager";
+import ZoneEffectsManager from "./scripts/zoneEffectsManager";
 import { calculateCellsForZone } from "./scripts/calculateCellsForZone";
 import CharacterInfoPanel from "./components/CharacterInfoPanel";
 import Notification from './Notification';
@@ -64,7 +65,7 @@ const RANGE_OF_THROWABLE_OBJECTS = 5;
 const RANGE_OF_BUILDING_OBJECTS = 1;
 const INVENTORY_BASE_LIMIT = 3;
 
-const GAME_BASE = 'https://sr-game-backend-32667b36f309.herokuapp.com';
+const GAME_BASE = 'https://saikiong-rodus-08b1dee9bafb.herokuapp.com';
 
 // API функции для работы с сервером
 const apiRequest = async (url, options = {}) => {
@@ -354,6 +355,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   const [matchState, setMatchState] = useState(initialMatchState);
   const [itemHelperInfo, setItemHelperInfo] = useState(null)
   const [throwDestination, setThrowDestination] = useState(null)
+  const [throwDestIsFixed, setThrowDestIsFixed] = useState(false);
   const [zoneFixed, setZoneFixed] = useState(false);
   const [charactersInZone, setCharactersInZone] = useState([]);
   const [chargesDistribution, setChargesDistribution] = useState({});
@@ -374,6 +376,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   const [pendingTeleportation, setPendingTeleportation] = useState(null);
   const [teleportationCells, setTeleportationCells] = useState([]);
   const [teleportationDestination, setTeleportationDestination] = useState(null);
+
 
   // Состояния для возведения построек
   const [buildingMode, setBuildingMode] = useState(false);
@@ -1120,6 +1123,76 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     updateCells();
   }, [pendingMode, beamSelectionMode, pointSelectionMode, zoneSelectionMode, selectedCharacter, selectedCharacter?.position]);
 
+  // Синхронизация постоянных оверлеев с активными зонами на карте
+  useEffect(() => {
+    const zones = Array.isArray(matchState?.zoneEffects) ? matchState.zoneEffects : [];
+    if (!zones?.length) {
+      setPermanentOverlays([]);
+      return;
+    }
+    const overlays = zones.map((z) => ({
+      id: z.id,
+      color: z.color || z.stats?.rangeColor || "#9d45f5",
+      cells: (() => {
+        const size = selectedMap.size;
+        const center = z.center;
+        const shape = z.shape || z.stats?.rangeShape || "romb";
+        const radius = z.stats?.rangeOfObject ?? 1;
+        // Лёгкий локальный расчёт, синхронно (для отрисовки)
+        // Ромб — используем уже готовую функцию
+        if (shape === "romb") {
+          return calculateCellsForZone(center, radius, size);
+        }
+        if (shape === "circle") {
+          const [cx, cy] = center.split("-").map(Number);
+          const cols = size[0];
+          const rows = size[1];
+          const res = [];
+          const r2 = radius * radius;
+          for (let y = Math.max(1, cy - radius); y <= Math.min(rows, cy + radius); y++) {
+            for (let x = Math.max(1, cx - radius); x <= Math.min(cols, cx + radius); x++) {
+              const dx = x - cx;
+              const dy = y - cy;
+              if (dx * dx + dy * dy <= r2) res.push(`${x}-${y}`);
+            }
+          }
+          return res;
+        }
+        if (shape === "rectangle") {
+          const [cx, cy] = center.split("-").map(Number);
+          const cols = size[0];
+          const rows = size[1];
+          const w = Math.max(1, Number(z.stats?.rangeWidth) || 1);
+          const h = Math.max(1, Number(z.stats?.rangeHeight) || 1);
+          const halfW = Math.floor(w / 2);
+          const halfH = Math.floor(h / 2);
+          const res = [];
+          for (let y = Math.max(1, cy - halfH); y <= Math.min(rows, cy + halfH); y++) {
+            for (let x = Math.max(1, cx - halfW); x <= Math.min(cols, cx + halfW); x++) {
+              res.push(`${x}-${y}`);
+            }
+          }
+          return res;
+        }
+        if (shape === "cross") {
+          const [cx, cy] = center.split("-").map(Number);
+          const cols = size[0];
+          const rows = size[1];
+          const res = new Set([`${cx}-${cy}`]);
+          for (let d = 1; d <= radius; d++) {
+            if (cx + d <= cols) res.add(`${cx + d}-${cy}`);
+            if (cx - d >= 1) res.add(`${cx - d}-${cy}`);
+            if (cy + d <= rows) res.add(`${cx}-${cy + d}`);
+            if (cy - d >= 1) res.add(`${cx}-${cy - d}`);
+          }
+          return [...res];
+        }
+        return calculateCellsForZone(center, radius, size);
+      })(),
+    }));
+    setPermanentOverlays(overlays);
+  }, [matchState?.zoneEffects, selectedMap]);
+
   // Авто-обновление карточки выбранного персонажа при изменении matchState
   useEffect(() => {
     if (!showCharacterInfoPanel || !selectedCharacter || !matchState) return;
@@ -1634,6 +1707,22 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     console.log('matchState', matchState);
 
     // Передаём в updateMatchState именно новую копию
+    // Обновляем динамические зоны: привязываем центр к переместившемуся владельцу
+    try {
+      if (Array.isArray(nextState.zoneEffects)) {
+        const movedChar = idx !== -1 ? teamArr[idx] : null;
+        if (movedChar) {
+          nextState.zoneEffects.forEach((z) => {
+            if (z.dynamic && (z.casterName === movedChar.name || z.chase === "self")) {
+              z.center = movedChar.position; // сразу перенести центр зоны
+            }
+          });
+        }
+      }
+    } catch (e) {
+      console.error('[ZoneEffects] update on move failed', e);
+    }
+
     updateMatchState(nextState);
 
     // Обновляем selectedCharacter с новой позицией и вызываем checkModePossibility
@@ -1959,7 +2048,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                     }
                   } : null,
                   image: object.image,
-                  actions: object.type === "item" && [
+                  actions: object.type === "item" && object.pickable !== false && [
                     {
                       name: "Взять",
                       onClick: async () => {
@@ -2002,7 +2091,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
               }
             } : null,
             image: object.image,
-            actions: object.type === "item" && [
+            actions: object.type === "item" && object.pickable !== false && [
               {
                 name: "Взять",
                 onClick: async () => {
@@ -2080,6 +2169,15 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           console.log('putDownObject', coordinates);
           await putDownObject(coordinates)
         }
+        if (pendingMode === "throw" && throwableCells.includes(coordinates)) {
+          if (throwDestIsFixed && throwDestination === coordinates) {
+            setThrowDestIsFixed(false);
+            setThrowDestination(null);
+          } else {
+            setThrowDestIsFixed(true);
+            setThrowDestination(coordinates);
+          }
+        }
         if (pendingMode === null) {
           if (matchState.objectsOnMap.find(obj => obj.position === coordinates)) {
             if (dynamicTooltip) {
@@ -2103,7 +2201,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                   }
                 } : null,
                 image: object.image,
-                actions: object.type === "item" && [
+                actions: object.type === "item" && object.pickable !== false && [
                   {
                     name: "Взять",
                     onClick: async () => {
@@ -2263,7 +2361,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       return; // прекращаем дальнейшую обработку клика
     }
 
-    if ((pendingMode === "throw" || pendingMode === "putDown") && throwableCells.includes(cellCoord)) {
+    if ((pendingMode === "putDown" || (pendingMode === "throw" && !throwDestIsFixed)) && throwableCells.includes(cellCoord)) {
       setThrowDestination(cellCoord);
       return;
     }
@@ -2334,6 +2432,18 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     effectsManager.applyCharacterEffects(teamTurn);
     effectsManager.applyZoneEffects(matchState.churches, teamTurn);
 
+    // Применяем эффекты активных зон на карте и уменьшаем их длительность
+    const zoneManager = new ZoneEffectsManager(matchState, selectedMap, addActionLog);
+    const zonesCount = Array.isArray(matchState.zoneEffects) ? matchState.zoneEffects.length : 0;
+    console.log(`(debug) Завершение хода команды ${teamTurn}. Активных зон: ${zonesCount}`, 'system', 'Зона');
+    try {
+      zoneManager.applyZonesAtTurnEnd(teamTurn);
+      console.log(`(debug) Обработка зон завершена.`, 'system', 'Зона');
+    } catch (e) {
+      console.error(`(error) Обработка зон упала: ${e?.message || e}`, 'system', 'Зона');
+      console.error('[ZoneEffects] applyZonesAtTurnEnd error', e);
+    }
+
 
 
     if (isNewRoundStarting) {
@@ -2349,21 +2459,6 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         await updateCreepsAPI(roomCode);
       }
       addActionLog(`--- Ход ${matchState.turn} завершён ---`);
-      // Пример проверки всех объектов:
-      const updatedObjects = matchState.objectsOnMap
-        .map((obj) => {
-          if (obj.type === "zone") {
-            // Уменьшаем
-            const newRemains = obj.turnsRemain - 1;
-            return { ...obj, turnsRemain: newRemains };
-          }
-          return obj;
-        })
-        .filter((obj) => {
-          // Фильтруем, убираем зоны, у которых turnsRemain <= 0
-          if (obj.type === "zone" && obj.turnsRemain <= 0) return false;
-          return true;
-        });
     }
 
     setTeamTurn(nextTeam);
@@ -2524,6 +2619,44 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         updateMatchState({ teams: updatedTeams }, 'partial');
         addActionLog(`${pendingZoneEffect.caster.name} перемещается в центр области (${centerCoord})`);
       }
+    }
+
+    // Если это «Размещение области с эффектом зоны» и у способности есть длительность – создаём постоянную зону
+    if (
+      pendingZoneEffect.type === "Размещение области с эффектом зоны" &&
+      typeof pendingZoneEffect.turnsRemain === "number" &&
+      pendingZoneEffect.turnsRemain > 0
+    ) {
+      if (!Array.isArray(matchState.zoneEffects)) matchState.zoneEffects = [];
+      const zoneManager = new ZoneEffectsManager(matchState, selectedMap, addActionLog);
+      // Центр зоны – средняя точка выделения либо точка клика
+      const center = selectionOverlay?.length
+        ? (() => {
+          let sumX = 0, sumY = 0;
+          selectionOverlay.forEach(cell => {
+            const [col, row] = cell.split("-").map(Number);
+            sumX += col;
+            sumY += row;
+          });
+          const cx = Math.round(sumX / selectionOverlay.length);
+          const cy = Math.round(sumY / selectionOverlay.length);
+          return `${cx}-${cy}`;
+        })()
+        : charactersInZone[0]?.position || pendingZoneEffect.caster.position;
+
+      zoneManager.createZone({
+        id: `zone_${Date.now()}`,
+        name: pendingZoneEffect.name,
+        affiliate: pendingZoneEffect.affiliate || "neutral",
+        stats: pendingZoneEffect.stats || {},
+        turnsRemain: pendingZoneEffect.turnsRemain,
+        coordinates: pendingZoneEffect.coordinates,
+        chase: pendingZoneEffect.chase,
+        caster: pendingZoneEffect.caster,
+        center,
+        zoneEffect: pendingZoneEffect.zoneEffect,
+      });
+      updateMatchState({ zoneEffects: matchState.zoneEffects }, 'partial');
     }
 
     // Очищаем состояния
@@ -2967,10 +3100,11 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
             // Получаем цвет, если есть
             const highlightColor = overlay?.color ?? null;
 
-            // Формируем inline-стиль, или можно динамический класс
+            // Формируем inline-стиль (покраска клетки фоном)
             let highlightStyle = {};
             if (highlightColor) {
-              highlightStyle.boxShadow = `inset 0 0 0 3px ${highlightColor}`;
+              highlightStyle.backgroundColor = highlightColor;
+              highlightStyle.border = `2px solid ${highlightColor}`;
             }
 
             const redChar = matchState?.teams?.red?.characters?.find(
@@ -3002,6 +3136,8 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
               classes.push("cell--point-target");
             if (buildingDestination.includes(cellKey))
               classes.push("cell--building-target");
+            if (throwDestination === cellKey)
+              classes.push("cell--throw-target");
             if (redChar)
               classes.push("red-character");
             if (blueChar)
@@ -4194,7 +4330,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
             </div>
           </div>
         )}
-        {pendingMode === "throw" || (pendingMode === "putDown") && (
+        {(pendingMode === "throw" || pendingMode === "putDown") && (
           <div className="game-zone-confirmation__container">
             <p className="game-zone-confirmation__message">
               Выберите клетку для {pendingMode === "throw" ? "броска предмета" : "выкладки предмета"}
@@ -4207,7 +4343,98 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                 </span>
               </div>
             )}
+            <div className="game-zone-confirmation__toggle">
+              <label className="toggle">
+                <input
+                  type="checkbox"
+                  checked={!!throwDestIsFixed}
+                  onChange={(e) => setThrowDestIsFixed(e.target.checked)}
+                />
+                <span>{throwDestIsFixed ? "Открепить клетку" : "Закрепить клетку"}</span>
+              </label>
+            </div>
             <div className="game-zone-confirmation__button-group">
+              <button
+                className="game-zone-confirmation__button game-zone-confirmation__button--confirm"
+                onClick={() => {
+                  if (!throwDestination || !pendingItem) return;
+                  try {
+                    console.log('[ThrowConfirm] try create zone for item', pendingItem?.name, 'at', throwDestination);
+                    console.log('[ThrowConfirm] pendingItem full', JSON.parse(JSON.stringify(pendingItem)));
+                    // Если у предмета есть зональный эффект – создаём зону по data.js
+                    const item = pendingItem;
+                    const fallbackDef = availableItems.find((it) => it.name === item.name);
+                    const effect = item?.stats?.effect || fallbackDef?.stats?.effect;
+                    console.log('[ThrowConfirm] resolved effect source', {
+                      fromItem: typeof (item?.stats?.effect) === 'function',
+                      fromFallback: typeof (fallbackDef?.stats?.effect) === 'function',
+                    });
+                    if (typeof effect === 'function') {
+                      if (!Array.isArray(matchState.zoneEffects)) matchState.zoneEffects = [];
+                      const zoneConfig = effect({ usedBy: selectedCharacter, targetCoord: throwDestination });
+                      console.log('[ThrowConfirm] zoneConfig', zoneConfig);
+                      const manager = new ZoneEffectsManager(matchState, selectedMap, addActionLog);
+                      const createdZone = manager.createZone({
+                        name: zoneConfig.name,
+                        affiliate: zoneConfig.affiliate || item.stats.affiliation || 'neutral',
+                        stats: zoneConfig.stats || {},
+                        turnsRemain: zoneConfig.turnsRemain || 3,
+                        coordinates: zoneConfig.coordinates || 0,
+                        chase: zoneConfig.chase || null,
+                        caster: selectedCharacter,
+                        usedBy: { name: selectedCharacter.name, team: selectedCharacter.team },
+                        sourceItem: { id: item.id, name: item.name },
+                        center: zoneConfig.center || throwDestination,
+                        handlerKey: zoneConfig.handlerKey || null,
+                        characterEffect: zoneConfig.characterEffect,
+                        zoneEffect: zoneConfig.zoneEffect,
+                      });
+                      console.log('[ThrowConfirm] createdZone meta', { id: createdZone?.id, handlerKey: createdZone?.handlerKey, hasCCE: typeof createdZone?.customCharacterEffect === 'function' });
+                      // списываем предмет у владельца
+                      const nextTeams = deepClone(matchState.teams);
+                      const owner = nextTeams[selectedCharacter.team].characters.find(ch => ch.name === selectedCharacter.name);
+                      if (owner) {
+                        let idx = owner.inventory.findIndex(it => it.id === item.id);
+                        if (idx === -1) {
+                          idx = owner.inventory.findIndex(it => it.name === item.name);
+                        }
+                        if (idx !== -1) owner.inventory.splice(idx, 1);
+                      }
+                      // Добавляем визуальный объект в центр зоны (неподбираемый)
+                      const zoneCenter = zoneConfig.center || throwDestination;
+                      const newObjects = [
+                        ...matchState.objectsOnMap,
+                        {
+                          id: item.id || `drop_${Date.now()}`,
+                          type: 'item',
+                          name: item.name,
+                          image: item.image,
+                          description: item.description || 'Брошенный предмет',
+                          position: zoneCenter,
+                          team: selectedCharacter.team,
+                          pickable: false,
+                          zoneId: createdZone?.id || null,
+                        }
+                      ];
+                      matchState.teams[selectedCharacter.team].remain.actions -= 1;
+                      updateMatchState({ zoneEffects: matchState.zoneEffects, teams: nextTeams, objectsOnMap: newObjects }, 'partial');
+                      console.log('[ThrowConfirm] zone created, state updated');
+                    }
+                  } catch (e) {
+                    console.error('[ThrowConfirm] failed', e);
+                  }
+                  // Сброс UI
+                  setPendingMode(null);
+                  setThrowDestination(null);
+                  setPendingItem(null);
+                  setReachableCells([]);
+                  setThrowableCells([]);
+                  setItemHelperInfo(null);
+                  setSelectionOverlay([]);
+                }}
+              >
+                Подтвердить
+              </button>
               <button
                 className="game-zone-confirmation__button game-zone-pinButton"
                 onClick={() => {
@@ -4223,6 +4450,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                   setReachableCells([]);
                   setThrowableCells([]);
                   setItemHelperInfo(null);
+                  setSelectionOverlay([]);
                 }}
               >
                 Отмена
