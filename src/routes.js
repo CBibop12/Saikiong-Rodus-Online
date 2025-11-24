@@ -1,6 +1,6 @@
 // Для локальной разработки используем относительный путь.
 // Это позволяет Vite-proxy перенаправлять запросы на бэкенд и избавляет от CORS-ошибок.
-const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://sr-game-backend-32667b36f309.herokuapp.com';
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://saikiong-rodus-08b1dee9bafb.herokuapp.com';
 export const CHAT_BASE = import.meta.env.VITE_CHAT_BASE || 'https://saikiongrodus-backend-e47b3de7cf19.herokuapp.com';
 // Конфигурация запросов
 const defaultHeaders = (token) => ({

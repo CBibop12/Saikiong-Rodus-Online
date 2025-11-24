@@ -81,6 +81,7 @@ export default class EffectsManager {
    */
   applyCharacterEffects(teamKey) {
     const chars = this.state.teams[teamKey].characters;
+    console.log('[EffectsManager] applyCharacterEffects: total characters', chars.map(ch => ch.effects.length), 'endedTeam=', teamKey);
     chars.forEach((ch) => this.#tickCharacterEffects(ch));
   }
 
@@ -91,20 +92,56 @@ export default class EffectsManager {
     // идём с конца, чтобы безопасно splice‑ить
     for (let i = character.effects.length - 1; i >= 0; i--) {
       const eff = character.effects[i];
+      console.log('[EffectsManager] tick start', { character: character.name, effect: eff?.name, type: eff?.typeOfEffect, turnsRemain: eff?.turnsRemain });
+
+      // Восстанавливаем потерянные функции effect/consequence из реестра (после сериализации)
+      if (typeof window !== 'undefined' && window.__charEffectHandlers && eff?.effectId) {
+        const rec = window.__charEffectHandlers[eff.effectId];
+        if (rec) {
+          if (typeof eff.effect !== 'function' && typeof rec.effect === 'function') eff.effect = rec.effect;
+          if (typeof eff.consequence !== 'function' && typeof rec.consequence === 'function') eff.consequence = rec.consequence;
+        }
+      }
 
       // 1. эффекты, работающие каждый ход
       if (eff.typeOfEffect === "each turn" && typeof eff.effect === "function") {
-        eff.effect(character, this.state);    // передаём state на случай сложной логики
+        try {
+          const prevHP = character.currentHP ?? 0;
+          const prevArmor = character.currentArmor ?? 0;
+          eff.effect(character, this.state);    // передаём state на случай сложной логики
+          const newHP = character.currentHP ?? 0;
+          const newArmor = character.currentArmor ?? 0;
+          const hpDelta = prevHP - newHP;
+          const armorDelta = prevArmor - newArmor;
+          console.log('[EffectsManager] effect applied', { character: character.name, effect: eff.name, prevHP, newHP, hpDelta, prevArmor, newArmor, armorDelta });
+          if (eff.name === 'Яд') {
+            console.log('[Poison][tick]', character.name, { prevHP, newHP, hpDelta, prevArmor, newArmor, armorDelta, turnsRemain: eff.turnsRemain });
+            if (character.name === 'Саламандра') {
+              console.log('[Poison][Salamandra] tick', { prevHP, newHP, hpDelta, prevArmor, newArmor, armorDelta, turnsRemain: eff.turnsRemain });
+            }
+          }
+        } catch (e) {
+          console.error('[EffectsManager] effect apply error', eff?.name, e);
+        }
       }
 
       // 2. счётчик длительности
       if (eff.permanent) continue;            // пассивки/перманентные не уменьшаем
       if (typeof eff.turnsRemain === "number") {
         eff.turnsRemain -= 1;
+        console.log('[EffectsManager] effect decrement', { character: character.name, effect: eff.name, turnsRemain: eff.turnsRemain });
         if (eff.turnsRemain <= 0) {
+          if (eff.name === 'Яд') {
+            console.log('[Poison] finishing for', character.name);
+          }
           // 3. завершаем эффект
           if (typeof eff.consequence === "function") {
-            eff.consequence(character, this.state);
+            try {
+              eff.consequence(character, this.state);
+              console.log('[EffectsManager] effect consequence', { character: character.name, effect: eff.name });
+            } catch (e) {
+              console.error('[EffectsManager] effect consequence error', eff?.name, e);
+            }
           }
           character.effects.splice(i, 1);
           this.log(
@@ -112,6 +149,7 @@ export default class EffectsManager {
             "system",
             "Эффект"
           );
+          console.log('[EffectsManager] effect removed', { character: character.name, effect: eff.name });
         }
       }
     }

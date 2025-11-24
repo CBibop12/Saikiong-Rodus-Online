@@ -31,7 +31,7 @@ const MainMenu = () => {
       return;
     }
 
-    const apiBase = import.meta.env.VITE_API_BASE || 'https://sr-game-backend-32667b36f309.herokuapp.com';
+    const apiBase = import.meta.env.VITE_API_BASE || 'https://saikiong-rodus-08b1dee9bafb.herokuapp.com';
     fetch(`${apiBase}/users/me`, {
       headers: {
         Authorization: `Bearer ${token}`,

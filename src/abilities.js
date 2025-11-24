@@ -1,9 +1,9 @@
- // abilities.js (rev3)
+// abilities.js (rev3)
 // Универсальные pointAttack / multiAttack работают без явного параметра «attacker».
 // Внутри effect / beamEffect / zoneEffect мы вызываем их так: pointAttack(this, target)
 // где `this` — сам объект способности. Все стат-поля берутся из него.
 
-import {attack} from "./components/scripts/attack";
+import { attack } from "./components/scripts/attack";
 import { addEffect, agilityBoost, poisonousAttack, shield, silence, vampirism } from "./effects";
 
 /**
@@ -16,9 +16,9 @@ export const pointAttack = (abilityObj, target, opts = {}) => {
   const {
     damage = abilityObj.stats?.damage ?? abilityObj.stats?.damagePerShot ?? 0,
     damageType =
-      abilityObj.stats?.damageType ||
-      abilityObj.stats?.DamageType ||
-      "физический",
+    abilityObj.stats?.damageType ||
+    abilityObj.stats?.DamageType ||
+    "физический",
     armorPenetration = abilityObj.stats?.armorPenetration ?? 0,
     ...rest
   } = opts;
@@ -43,7 +43,7 @@ export const multiAttack = (abilityObj, targets, opts = {}) =>
   targets.forEach((t) => pointAttack(abilityObj, t, opts));
 
 export const abilities = {
-  
+
   // ---------- Способности Саламандры ----------
   salamandra_fire_shots: {
     name: "Огненные снаряды",
@@ -99,7 +99,7 @@ export const abilities = {
         turnsRemain: 3,
         initialDamage: initialDamage,
         /* выполняется каждый ход, если нужно */
-        effect: () => {},                   // agility увеличили 1 раз — больше делать нечего
+        effect: () => { },                   // agility увеличили 1 раз — больше делать нечего
         /* снимаем бафф */
         consequence: (ch, initialDamage) => {
           ch.currentAgility -= 2;
@@ -116,24 +116,18 @@ export const abilities = {
     type: "Размещение области с эффектом зоны",
     putBy: "Саламандра",
     coordinates: "dynamic",
+    chase: "self",
     turnsRemain: 3,
     affiliate: "negative only",
     stats: {
-      DamageType: "физический",
+      damageType: "физический",
+      damage: 50,
       attackRange: 0,
       rangeOfObject: 1,
       rangeShape: "romb",
-      rangeColor: "#9d45f5",
+      rangeColor: "#f26f18",
     },
-    zoneEffect: (affectedCharacters) => {
-      affectedCharacters.forEach((ch) => {
-        if (ch.Броня >= 1) {
-          ch.Броня -= 1;
-        } else {
-          ch.currentHP -= 50;
-        }
-      });
-    },
+    // Применение урона выполняется менеджером зон по stats.damage/stats.damageType
   },
 
   // ---------- Способности Юань-ти ----------
@@ -185,7 +179,7 @@ export const abilities = {
     effect: (initiator, character) => {
       poisonousAttack(character, {
         initiator,
-        damageLine: [{damage: 50, damageType: "физический"}, {damage: 50, damageType: "физический"}],
+        damageLine: [{ damage: 50, damageType: "физический" }, { damage: 50, damageType: "физический" }],
       })
     },
   },
@@ -198,9 +192,9 @@ export const abilities = {
     coordinates: 1,
     turnsRemain: 2,
     affiliate: "positive only",
-    effect: (ch) =>     agilityBoost(ch, {
-      amount:      3,
-      duration:    2,
+    effect: (ch) => agilityBoost(ch, {
+      amount: 3,
+      duration: 2,
       description: "Увеличивает ловкость Юань-ти на 3 на 2 хода",
     }),
   },
@@ -310,7 +304,7 @@ export const abilities = {
         turnsRemain: 4,
         initialDamage,
         /* выполняется каждый ход, если нужно */
-        effect: () => {},                   // agility увеличили 1 раз — больше делать нечего
+        effect: () => { },                   // agility увеличили 1 раз — больше делать нечего
         /* снимаем бафф */
         consequence: (ch) => {
           ch.advancedSettings.vampirism -= 50;
@@ -471,7 +465,7 @@ export const abilities = {
             // Проверяем, не пытается ли персонаж войти в запрещённую зону
             const dist = Math.sqrt(
               (targetPosition.x - zoneCenter.x) ** 2 +
-                (targetPosition.y - zoneCenter.y) ** 2
+              (targetPosition.y - zoneCenter.y) ** 2
             );
             // Разрешаем движение только, если dist > restrictedZone.radius
             return dist > 3;
@@ -731,11 +725,11 @@ export const abilities = {
       // Накладываем негативный DoT на 2 хода по 25 урона
       targets.forEach((ch) => {
         ch.effects.push({
-        name: "Рана от копья аараокры",
-        effectType: "negative",
-        turnsRemain: 2,
-        takingType: "once in a round",
-        onTick: (char) => {
+          name: "Рана от копья аараокры",
+          effectType: "negative",
+          turnsRemain: 2,
+          takingType: "once in a round",
+          onTick: (char) => {
             char.currentHP -= 25;
           },
         });
@@ -932,11 +926,11 @@ export const abilities = {
       targets.forEach((ch) => {
         // Проверяем, что персонаж существует
         if (!ch) return;
-        
+
         // Ищем персонажа "Подрывница" в командах
         let bombgirl = null;
         let bombgirlTeam = null;
-        
+
         ["red", "blue"].forEach(teamKey => {
           const foundChar = matchState.teams[teamKey].characters.find(character => character.name === "Подрывница");
           if (foundChar) {
@@ -944,7 +938,7 @@ export const abilities = {
             bombgirlTeam = teamKey;
           }
         });
-        
+
         // Определяем, к какой команде принадлежит текущий персонаж
         let charTeam = null;
         ["red", "blue"].forEach(teamKey => {
@@ -952,7 +946,7 @@ export const abilities = {
             charTeam = teamKey;
           }
         });
-        
+
         // Если персонаж из другой команды, чем Подрывница
         if (bombgirlTeam && charTeam && bombgirlTeam !== charTeam) {
           // Отключаем возможность двигаться и действовать
@@ -1430,9 +1424,9 @@ export const abilities = {
     coordinates: 1,
     turnsRemain: 2, // 2 хода
     affiliate: "positive only",
-    effect: (plut) =>     agilityBoost(plut, {
-      amount:      plut.currentAgility,
-      duration:    2,
+    effect: (plut) => agilityBoost(plut, {
+      amount: plut.currentAgility,
+      duration: 2,
       description: "Удвоение ловкости Плута на 2 хода",
     }),
   },
@@ -1578,7 +1572,7 @@ export const abilities = {
       pointAttack(this, target, { damage: dmg });
     },
   },
-  
+
   legionnaire_line_formation: {
     name: "Линия легионеров",
     coolDown: 8,
@@ -2276,9 +2270,9 @@ export const abilities = {
     putBy: "Пикси-целитель",
     coordinates: 1,
     affiliate: "positive only",
-    effect: (pixie) =>     agilityBoost(pixie, {
-      amount:      2,
-      duration:    2,
+    effect: (pixie) => agilityBoost(pixie, {
+      amount: 2,
+      duration: 2,
       description: "Увеличивает ловкость Пикси на 2 на 2 хода",
     }),
   },
@@ -3412,7 +3406,7 @@ export const abilities = {
       damage: 200,
       damageType: "технический",
     },
-    beamEffect: function(targets) {
+    beamEffect: function (targets) {
       multiAttack(this, targets);
     },
   },

@@ -1208,6 +1208,10 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  min-height: 40px; /* одинаковая высота */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .game-zone-confirmation__button:hover {
@@ -1369,7 +1373,7 @@
 }
 
 
-.cell--point-target, .cell--building-target {
+.cell--point-target, .cell--building-target, .cell--throw-target {
   outline: 2px solid rgb(255, 217, 0);
   z-index: 1001;
   background-color: rgb(255, 217, 0);
@@ -2110,4 +2114,33 @@ justify-content: center;
 
 .action-button.half-width {
   width: 50%;
+}
+
+.game-zone-confirmation__toggle {
+  display: flex;
+  justify-content: center;
+  margin: 8px 0 12px 0;
+}
+
+.game-zone-confirmation__toggle .toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 6px 10px;
+  border-radius: 6px;
+  color: #D4AF37;
+}
+
+.game-zone-confirmation__toggle .toggle input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #D4AF37;
+}
+
+.game-zone-confirmation__toggle .toggle span {
+  font-size: 14px;
+  font-weight: 600;
+  color: #D4AF37;
 }
