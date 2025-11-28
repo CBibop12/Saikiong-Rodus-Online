@@ -52,7 +52,7 @@ export const useUserSocket = (onEvent) => {
         const token = localStorage.getItem('srUserToken');
         if (!token) return;
 
-        const base = import.meta.env.VITE_WS_BASE || 'wss://sr-game-backend-32667b36f309.herokuapp.com';
+        const base = import.meta.env.VITE_WS_BASE || 'wss://saikiong-rodus-08b1dee9bafb.herokuapp.com';
         const socket = new WebSocket(`${base}/users?token=${token}`);
         wsRef.current = socket;
 
