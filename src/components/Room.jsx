@@ -4,6 +4,8 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { Copy, ArrowLeft, Plus, MessageSquare, LogOut } from 'lucide-react';
 import "../styles/styles.css";
 import { CHAT_BASE, getChat, roomRoutes, userRoutes } from '../routes';
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://saikiong-rodus-08b1dee9bafb.herokuapp.com';
 import { useDebounce } from 'use-debounce';
 import PrivateChat from './PrivateChat';
 import io from 'socket.io-client';
@@ -156,7 +158,7 @@ const Room = () => {
     useEffect(() => {
         // Подключаемся к WebSocket один раз
         if (!socketRef.current) {
-            const socket = io(CHAT_BASE, {
+            const socket = io(API_BASE, {
                 auth: {
                     token: localStorage.getItem('srUserToken'),
                 },

@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send, X } from 'lucide-react';
 import { CHAT_BASE, getChatMessages, sendMessage } from '../routes';
+
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://saikiong-rodus-08b1dee9bafb.herokuapp.com';
 import { useLang } from '../i18n/LanguageContext';
 import PropTypes from 'prop-types';
 import { io } from 'socket.io-client';
@@ -31,7 +33,7 @@ function PrivateChat({ chat, friendUsername, friendAvatar, onClose, currentUserI
     useEffect(() => {
         if (socketRef.current) return;
 
-        const socket = io(CHAT_BASE, {
+        const socket = io(API_BASE, {
             auth: {
                 token: localStorage.getItem('srUserToken'),
             },
