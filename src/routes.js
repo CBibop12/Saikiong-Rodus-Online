@@ -350,7 +350,6 @@ export async function cellHasType(types, coord, roomCode) {
 
 export async function objectOnCell(coord, roomCode, type = '') {
     const token = getToken();
-    console.log('token', token);
     if (!token) throw new Error('Токен не найден');
 
     const coordStr = Array.isArray(coord) ? `${coord[0] + 1}-${coord[1] + 1}` : coord;

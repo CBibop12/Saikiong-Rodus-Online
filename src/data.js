@@ -3799,43 +3799,6 @@ export const items = [
         center: targetCoord,
         coordinates: 0,
         handlerKey: 'poison_potion',
-        characterEffect: (ch) => {
-          // Накладываем только эффект "Яд" и иммунитет, без прямого урона от зоны
-          ch.effects = ch.effects || [];
-          const hasImmunity = ch.effects.some(e => e.name === 'Иммунитет к яду');
-          const hasPoison = ch.effects.some(e => e.name === 'Яд');
-          if (!hasImmunity && !hasPoison) {
-            addEffect(ch, {
-              name: 'Яд',
-              description: 'Получает 100 урона каждый ход в течение 3 ходов',
-              effectType: 'negative',
-              canCancel: false,
-              typeOfEffect: 'each turn',
-              turnsRemain: 3,
-              effect: (character) => {
-                const armorLoss = Math.min(1, Math.max(0, character.currentArmor || 0));
-                if (armorLoss > 0) character.currentArmor -= armorLoss;
-                const hpLoss = 100 - armorLoss * 100; // если была броня, HP не снимаем
-                if (hpLoss > 0) character.currentHP = Math.max(0, (character.currentHP || 0) - hpLoss);
-                console.log('[PoisonPotion][onTick]', character?.name, { hp: character?.currentHP, armor: character?.currentArmor, armorLoss, hpLoss });
-              },
-              consequence: (character) => {
-                // По завершении яда выдаём иммунитет к повторному отравлению
-                addEffect(character, {
-                  name: 'Иммунитет к яду',
-                  description: 'Не может быть повторно отравлён этим облаком до конца игры',
-                  effectType: 'positive',
-                  canCancel: false,
-                  permanent: true,
-                });
-                console.log('[PoisonPotion] Immunity applied to', character?.name);
-              }
-            });
-            console.log('[PoisonPotion] Poison applied to', ch?.name);
-          } else {
-            console.log('[PoisonPotion] skipped for', ch?.name, { hasImmunity, hasPoison });
-          }
-        },
         usedBy: usedBy ? { name: usedBy.name, team: usedBy.team } : null,
       }),
     },

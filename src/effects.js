@@ -1,5 +1,6 @@
 import { attack } from "./components/scripts/attack";
-import { generateId } from "./components/scripts/tools/simplifierStore";
+import { makeId } from "./gameEngine/state/makeId";
+import { applyEffectOnApply, normalizeEffectKey } from "./gameEngine/effects/effectRegistry";
 // effects.js – конструкторы и хелперы для стат‑эффектов персонажей
 // Экспортируйте отсюда функции‑«пресеты» и универсальный addEffect, если понадобится.
 
@@ -10,17 +11,25 @@ import { generateId } from "./components/scripts/tools/simplifierStore";
 
 export function addEffect(character, effectObj) {
   if (!character.effects) character.effects = [];
-  const id = generateId();
-  const newEffect = { ...effectObj, effectId: id };
+  const id = makeId("eff");
+  const effectKey = effectObj?.effectKey
+    ? normalizeEffectKey(effectObj.effectKey)
+    : effectObj?.name
+      ? normalizeEffectKey(effectObj.name)
+      : "unknown_effect";
+
+  // ВАЖНО: не кладём функции в matchState (effect/consequence)
+  const { effect, consequence, ...rest } = effectObj || {};
+
+  const newEffect = {
+    ...rest,
+    effectKey,
+    params: effectObj?.params || rest.params || {},
+    effectId: id,
+  };
   character.effects.push(newEffect);
-  // Регистрируем функции эффекта в реестре, чтобы переживать сериализацию состояния
-  if (typeof window !== 'undefined') {
-    window.__charEffectHandlers = window.__charEffectHandlers || {};
-    window.__charEffectHandlers[id] = {
-      effect: typeof effectObj.effect === 'function' ? effectObj.effect : null,
-      consequence: typeof effectObj.consequence === 'function' ? effectObj.consequence : null,
-    };
-  }
+  // Применяем onApply сразу (для one-time баффов)
+  applyEffectOnApply(newEffect, character, null, null);
   return newEffect;
 }
 
@@ -41,14 +50,6 @@ export function removeEffect(character, effectId) {
   if (!character.effects) return;
   let effectIndex = character.effects.findIndex(effect => effect.effectId === effectId);
   if (effectIndex === -1) return;
-  const eff = character.effects[effectIndex];
-  // Ре-гидратация consequence при необходимости
-  if (typeof eff.consequence !== 'function' && typeof window !== 'undefined' && window.__charEffectHandlers?.[eff.effectId]?.consequence) {
-    eff.consequence = window.__charEffectHandlers[eff.effectId].consequence;
-  }
-  if (typeof eff.consequence === 'function') {
-    eff.consequence(character, eff.initialDamage ? eff.initialDamage : null);
-  }
   character.effects.splice(effectIndex, 1);
 }
 /**
@@ -74,24 +75,15 @@ export function agilityBoost(
     typeOfEffect = "one time",          // one time | each turn | ...
   } = {}
 ) {
-  /* ── где хранится «текущая ловкость» ───────────────────────── */
-  const addAgi = (ch, val) => {
-    ch.currentAgility += val;
-  };
-
-  addAgi(character, amount);            // сразу выдаём бафф
-
   return addEffect(character, {
+    effectKey: "agility_boost",
     name,
     description,
     effectType,
     canCancel,
     typeOfEffect,
     turnsRemain: duration,
-    /* выполняется каждый ход, если нужно */
-    effect: () => { },                   // agility увеличили 1 раз — больше делать нечего
-    /* снимаем бафф */
-    consequence: (ch) => addAgi(ch, -amount),
+    params: { amount },
   });
 }
 
@@ -107,24 +99,15 @@ export function damageBoost(
     typeOfEffect = "one time",          // one time | each turn | ...
   } = {}
 ) {
-  /* ── где хранится «текущая ловкость» ───────────────────────── */
-  const addDmg = (ch, val) => {
-    ch.currentDamage += val;
-  };
-
-  addDmg(character, amount);            // сразу выдаём бафф
-
   return addEffect(character, {
+    effectKey: "damage_boost",
     name,
     description,
     effectType,
     canCancel,
     typeOfEffect,
     turnsRemain: duration,
-    /* выполняется каждый ход, если нужно */
-    effect: () => { },                   // agility увеличили 1 раз — больше делать нечего
-    /* снимаем бафф */
-    consequence: (ch) => addDmg(ch, -amount),
+    params: { amount },
   });
 }
 
@@ -141,29 +124,15 @@ export function shield(
     typeOfEffect = "one time",          // one time | each turn | ...
   } = {}
 ) {
-  /* ── где хранится «текущая ловкость» ───────────────────────── */
-  const addHP = (ch, val) => {
-    ch.currentHP += val;
-  };
-
-  addHP(character, amount);            // сразу выдаём бафф
-
-  const removeShield = (ch, initialHP, amount) => {
-    ch.currentHP = Math.min(ch.currentHP, initialHP)
-  }
-
-
   return addEffect(character, {
+    effectKey: "shield",
     name,
     description,
     effectType,
     canCancel,
     typeOfEffect,
     turnsRemain: duration,
-    /* выполняется каждый ход, если нужно */
-    effect: () => { },                   // agility увеличили 1 раз — больше делать нечего
-    /* снимаем бафф */
-    consequence: (ch) => removeShield(ch, initialHP, amount),
+    params: { amount, capHP: initialHP },
   });
 }
 
@@ -180,28 +149,15 @@ export function manaBoost(
     typeOfEffect = "one time",          // one time | each turn | ...
   } = {}
 ) {
-  const addMana = (ch, val) => {
-    ch.currentMana += val;
-  };
-
-  addMana(character, amount);            // сразу выдаём бафф
-
-  const removeMana = (ch, initialMana, amount) => {
-    ch.currentMana = Math.min(ch.currentMan, initialMana - amount)
-  }
-
-
   return addEffect(character, {
+    effectKey: "mana_boost",
     name,
     description,
     effectType,
     canCancel,
     typeOfEffect,
     turnsRemain: duration,
-    /* выполняется каждый ход, если нужно */
-    effect: () => { },                   // agility увеличили 1 раз — больше делать нечего
-    /* снимаем бафф */
-    consequence: (ch) => removeMana(ch, initialMana, amount),
+    params: { amount, capMana: initialMana },
   });
 }
 
@@ -217,24 +173,15 @@ export function vampirism(
     typeOfEffect = "one time",          // one time | each turn | ...
   } = {}
 ) {
-  /* ── где хранится «текущая ловкость» ───────────────────────── */
-  const addVamp = (ch, val) => {
-    ch.advancedSettings.vampirism += val;
-  };
-
-  addVamp(character, amount);            // сразу выдаём бафф
-
   return addEffect(character, {
+    effectKey: "vampirism",
     name,
     description,
     effectType,
     canCancel,
     typeOfEffect,
     turnsRemain: duration,
-    /* выполняется каждый ход, если нужно */
-    effect: () => { },                   // agility увеличили 1 раз — больше делать нечего
-    /* снимаем бафф */
-    consequence: (ch) => addVamp(ch, -amount),
+    params: { amount },
   });
 }
 
@@ -275,22 +222,14 @@ export function silence(character,
     canCancel = false,
     typeOfEffect = "one time",          // one time | each turn | ...
   } = {}) {
-  character.functions.abilityUsability = false;
-
   addEffect(character, {
+    effectKey: "silence",
     name,
     description,
     effectType,
     canCancel,
     typeOfEffect,
     turnsRemain: duration,
-    /* выполняется каждый ход, если нужно */
-    effect: () => { },                   // agility увеличили 1 раз — больше делать нечего
-    /* снимаем бафф */
-    consequence: (ch) => {
-      if (!hasSilenceBesides(ch)) {
-        ch.functions.abilityUsability = true;
-      }
-    },
+    params: {},
   })
 }

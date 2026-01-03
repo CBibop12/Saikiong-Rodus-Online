@@ -5,40 +5,7 @@ import { getCellsForShape } from "./calculateCellsForZone";
 import { attack } from "./attack";
 import { findCharacter } from "./tools/characterStore";
 import { stringFromCoord } from "./tools/mapStore";
-import { addEffect } from "../../effects";
-
-// Встроенные обработчики зон, которые можно привязать по ключу handlerKey
-const builtinHandlers = {
-    poison_potion: (ch) => {
-        ch.effects = ch.effects || [];
-        const hasImmunity = ch.effects.some(e => e.name === 'Иммунитет к яду');
-        const hasPoison = ch.effects.some(e => e.name === 'Яд');
-        if (!hasImmunity && !hasPoison) {
-            addEffect(ch, {
-                name: 'Яд',
-                description: 'Получает 100 урона каждый ход в течение 3 ходов',
-                effectType: 'negative',
-                canCancel: false,
-                typeOfEffect: 'each turn',
-                turnsRemain: 3,
-                effect: (character) => {
-                    character.currentHP = Math.max(0, (character.currentHP || 0) - 100);
-                    console.log('[Zones][builtin poison onTick]', character?.name, { hp: character?.currentHP });
-                },
-                consequence: (character) => {
-                    addEffect(character, {
-                        name: 'Иммунитет к яду',
-                        description: 'Не может быть повторно отравлён этим облаком до конца игры',
-                        effectType: 'positive',
-                        canCancel: false,
-                        permanent: true,
-                    });
-                }
-            });
-            console.log('[Zones][builtin poison] applied to', ch?.name);
-        }
-    }
-};
+import { applyZoneCharacterHandler } from "../../gameEngine/zones/zoneRegistry";
 
 export default class ZoneEffectsManager {
     constructor(matchState, selectedMap, addActionLog) {
@@ -54,7 +21,8 @@ export default class ZoneEffectsManager {
      * Создать и разместить зону на карте.
      * @param {Object} cfg
      *  - name, affiliate, stats{rangeOfObject, rangeShape, rangeColor, damage, damageType, rangeWidth, rangeHeight}
-     *  - turnsRemain, center ("x-y"), coordinates ("dynamic"|number), chase (string), caster (Character), zoneEffect (fn)
+     *  - turnsRemain, center ("x-y"), coordinates ("dynamic"|number), chase (string), caster (Character)
+     *  - handlerKey (string), params (object)
      */
     createZone(cfg) {
         const id = cfg.id || `zone_${Date.now()}_${Math.random().toString(36).slice(2)}`;
@@ -80,28 +48,9 @@ export default class ZoneEffectsManager {
             casterName,
             age: 0,
             turnsRemain,
-            // Пользовательская логика эффектов (если задана у способности)
-            customZoneEffect: typeof cfg.zoneEffect === "function" ? cfg.zoneEffect : null,
-            // Новый пер-целевой эффект: применяется к каждому персонажу в зоне (альтернатива zoneEffect)
-            customCharacterEffect:
-                typeof cfg.characterEffect === "function"
-                    ? cfg.characterEffect
-                    : typeof cfg.customCharacterEffect === "function"
-                        ? cfg.customCharacterEffect
-                        : typeof cfg.applyToCharacter === "function"
-                            ? cfg.applyToCharacter
-                            : null,
-            // Доп.метаданные источника
-            sourceItem: cfg.sourceItem || null,
-            usedBy: cfg.usedBy || (cfg.caster ? { name: cfg.caster.name, team: cfg.caster.team } : null),
             handlerKey: cfg.handlerKey || null,
+            params: cfg.params || null,
         };
-
-        // Если функции не пришли, но есть handlerKey — подхватим из встроенных
-        if (!zoneObj.customCharacterEffect && zoneObj.handlerKey && builtinHandlers[zoneObj.handlerKey]) {
-            zoneObj.customCharacterEffect = builtinHandlers[zoneObj.handlerKey];
-            console.log('[Zones][CREATE] bind builtin handler for', id, zoneObj.handlerKey);
-        }
 
         // DEBUG
         console.log("[Zones][CREATE] id=", id, {
@@ -110,25 +59,10 @@ export default class ZoneEffectsManager {
             center: zoneObj.center,
             turnsRemain: zoneObj.turnsRemain,
             casterName: zoneObj.casterName,
-            hasCustomCharacterEffect: typeof zoneObj.customCharacterEffect === 'function',
-            hasCustomZoneEffect: typeof zoneObj.customZoneEffect === 'function',
             shape: zoneObj.shape,
             stats: zoneObj.stats,
+            handlerKey: zoneObj.handlerKey,
         });
-
-        // Регистрируем обработчики в глобальном реестре (не сериализуется)
-        if (typeof window !== 'undefined') {
-            window.__zoneHandlers = window.__zoneHandlers || {};
-            window.__zoneHandlers[id] = {
-                customCharacterEffect: zoneObj.customCharacterEffect,
-                customZoneEffect: zoneObj.customZoneEffect,
-                handlerKey: zoneObj.handlerKey || null,
-            };
-            console.log('[Zones][REGISTRY] store handlers for', id, {
-                hasCCE: typeof zoneObj.customCharacterEffect === 'function',
-                hasCZE: typeof zoneObj.customZoneEffect === 'function',
-            });
-        }
 
         this.state.zoneEffects.push(zoneObj);
         this.log?.(`Зона «${zoneObj.name}» создана в ${zoneObj.center} на ${turnsRemain} ход(а)`, "system", "Зона");
@@ -148,24 +82,6 @@ export default class ZoneEffectsManager {
         this.log?.(`Зоны: всего активных зон ${zones.length}`, "system", "Зона");
 
         for (const zone of zones) {
-            // Восстанавливаем обработчики из реестра, если были потеряны при синхронизации
-            if ((!zone.customCharacterEffect && !zone.customZoneEffect)) {
-                // Пытаемся восстановить: сперва из реестра, иначе по handlerKey из builtin
-                if (typeof window !== 'undefined' && window.__zoneHandlers?.[zone.id]) {
-                    const rec = window.__zoneHandlers[zone.id];
-                    if (rec?.customCharacterEffect) zone.customCharacterEffect = rec.customCharacterEffect;
-                    if (rec?.customZoneEffect) zone.customZoneEffect = rec.customZoneEffect;
-                    if (!zone.customCharacterEffect && rec?.handlerKey && builtinHandlers[rec.handlerKey]) {
-                        zone.customCharacterEffect = builtinHandlers[rec.handlerKey];
-                    }
-                } else if (zone.handlerKey && builtinHandlers[zone.handlerKey]) {
-                    zone.customCharacterEffect = builtinHandlers[zone.handlerKey];
-                }
-                console.log('[Zones][REGISTRY] restored handlers for', zone.id, {
-                    hasCCE: typeof zone.customCharacterEffect === 'function',
-                    hasCZE: typeof zone.customZoneEffect === 'function',
-                });
-            }
             console.log(`[Zones][TICK] id=${zone.id} name='${zone.name}' owner=${zone.casterName} endedTeam=${endedTeamKey} turnsRemain=${zone.turnsRemain}`);
             // Фильтруем зоны по команде владельца: "тикают" только на своих ходах
             const caster = zone.casterName ? findCharacter(zone.casterName, this.state) : null;
@@ -201,50 +117,20 @@ export default class ZoneEffectsManager {
             // 5) Применяем логику зоны
             this.log?.(`Зона «${zone.name}»: найдено целей ${affected.length} (центр=${zone.center})`, "system", "Зона");
             console.log(`[Zones] Zone '${zone.name}' affected:`, affected.map(a => a?.name), {
-                hasCCE: typeof zone.customCharacterEffect === 'function',
-                hasCZE: typeof zone.customZoneEffect === 'function',
+                handlerKey: zone.handlerKey,
                 affiliate: zone.affiliate,
                 center: zone.center,
             });
             if (affected.length) {
-                if (zone.customCharacterEffect) {
+                if (zone.handlerKey) {
                     affected.forEach((ch) => {
-                        try {
-                            console.log(`[Zones][CCE] '${zone.name}' -> ${ch.name}`);
-                            zone.customCharacterEffect(ch, this.state, zone, { attack, findCharacter });
-                            console.log(`[Zones] customCharacterEffect applied for ${ch.name} in '${zone.name}'`);
-                        } catch (e) {
-                            console.error("Zone customCharacterEffect error", e);
-                        }
-                    });
-                } else if (zone.customZoneEffect) {
-                    // Снимем слепок до применения для логов
-                    const before = new Map(
-                        affected.map((ch) => [ch.name, { hp: ch.currentHP, armor: ch.currentArmor ?? 0 }])
-                    );
-                    try {
-                        const argc = zone.customZoneEffect.length;
-                        if (argc >= 3) {
-                            zone.customZoneEffect(affected, zone.center, zone.age + 1);
-                        } else if (argc === 2) {
-                            zone.customZoneEffect(affected, zone.center);
-                        } else {
-                            zone.customZoneEffect(affected);
-                        }
-                    } catch (e) {
-                        console.error("Zone customZoneEffect error", e);
-                    }
-                    // Логи по целям
-                    affected.forEach((ch) => {
-                        const prev = before.get(ch.name) || { hp: ch.currentHP, armor: ch.currentArmor ?? 0 };
-                        const hpDelta = (prev.hp ?? 0) - (ch.currentHP ?? 0);
-                        const armorDelta = (prev.armor ?? 0) - (ch.currentArmor ?? 0);
-                        this.log?.(
-                            `Зона «${zone.name}» воздействует на ${ch.name}: HP ${prev.hp}→${ch.currentHP}${hpDelta ? ` (-${hpDelta})` : ""}, Броня ${prev.armor}→${ch.currentArmor}${armorDelta ? ` (-${armorDelta})` : ""}`,
-                            "system",
-                            "Зона"
-                        );
-                        console.log(`[Zones] Apply '${zone.name}' to ${ch.name}: HP ${prev.hp}->${ch.currentHP} (-${hpDelta}), Armor ${prev.armor}->${ch.currentArmor} (-${armorDelta})`);
+                        applyZoneCharacterHandler(zone.handlerKey, {
+                            character: ch,
+                            matchState: this.state,
+                            zone,
+                            helpers: { attack, findCharacter },
+                            log: this.log,
+                        });
                     });
                 } else if (typeof zone.stats?.damage === "number" && zone.stats.damage > 0) {
                     // Базовая модель урона зоной с учётом типа урона/брони
@@ -302,10 +188,6 @@ export default class ZoneEffectsManager {
                 if (!obj.zoneId) return true;
                 return !expired.includes(obj.zoneId);
             });
-            // Удаляем обработчики из реестра
-            if (typeof window !== 'undefined' && window.__zoneHandlers) {
-                expired.forEach((id) => { delete window.__zoneHandlers[id]; });
-            }
         }
         this.state.zoneEffects = alive;
     }

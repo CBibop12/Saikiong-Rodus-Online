@@ -35,6 +35,8 @@ import { startingWalls } from "./scripts/building";
 import ShopDistribution from "./components/ShopDistribution";
 import { updateCreeps } from "./scripts/creaturesStore";
 import { isItMyTurn } from "./scripts/tools/simplifierStore";
+import { endTurnEngine } from "../gameEngine/turn/turnManager";
+import { applyAbilitySelection } from "../gameEngine/abilities/abilityEngine";
 import {
   makeMapSignature,
   makeTeamsSignature,
@@ -49,7 +51,7 @@ import {
   getNearStoreFromCache,
   setNearStoreInCache,
 } from "./scripts/tools/cacheStore";
-import { findCharacter, findCharacterByPosition, cellHasType, objectOnCell, endTurn, getFreeCellLines, getFreeCellsAround } from "../routes";
+import { findCharacterByPosition, cellHasType, objectOnCell, endTurn, getFreeCellLines, getFreeCellsAround } from "../routes";
 import { useRoomSocket } from "../hooks/useRoomSocket";
 
 // Debug/metrics flags (toggle locally as needed)
@@ -374,6 +376,15 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   // Состояния для телепортации
   const [teleportationMode, setTeleportationMode] = useState(false);
   const [pendingTeleportation, setPendingTeleportation] = useState(null);
+  const getCharacterByName = (name) => {
+    const lower = String(name || "").toLowerCase();
+    return (
+      matchState?.teams?.red?.characters?.find((ch) => String(ch?.name || "").toLowerCase() === lower) ||
+      matchState?.teams?.blue?.characters?.find((ch) => String(ch?.name || "").toLowerCase() === lower) ||
+      null
+    );
+  };
+
   const [teleportationCells, setTeleportationCells] = useState([]);
   const [teleportationDestination, setTeleportationDestination] = useState(null);
 
@@ -619,17 +630,25 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
     // Если включён режим выбора точки, используем pendingPointEffect
     if (pointSelectionMode && pendingPointEffect) {
-      return pointCells.includes(cell);
+      return Array.isArray(pointCells) && pointCells.includes(cell);
     }
 
     // Если включён режим выбора луча, используем pendingBeamEffect, иначе — pendingZoneEffect
     const effect = beamSelectionMode ? pendingBeamEffect : pendingZoneEffect;
     if (!effect) return false;
 
-    const [startCol, startRow] = splitCoordLocal(effect.caster.position);
+    // В новом engine pending*Effect хранит casterName, а не caster-объект.
+    // Поэтому всегда резолвим кастера из matchState.
+    const caster =
+      (effect.caster && typeof effect.caster === "object" ? effect.caster : null) ||
+      getCharacterByName(effect.casterName) ||
+      null;
+    if (!caster?.position) return false;
+
+    const [startCol, startRow] = splitCoordLocal(caster.position);
     const [pointX, pointY] = splitCoordLocal(cell);
 
-    if (effect.type === "Луч") {
+    if (effect.type === "Луч" || effect.type === "Луч с перемещением") {
       if (beamFixed) return false;
       // Нельзя направлять луч в ту же клетку, что и персонаж
       if (pointX === startCol && pointY === startRow) return false;
@@ -638,9 +657,10 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       // Если ни столбцы, ни строки не совпадают, значит направление диагональное – возвращаем false.
       if (pointX !== startCol && pointY !== startRow) return false;
 
-      // Проверка, что клетка находится в пределах разрешённой дальности
+      // Проверка, что клетка находится в пределах разрешённой дальности (beamRange = coordinates)
       const distance = Math.max(Math.abs(pointX - startCol), Math.abs(pointY - startRow));
-      if (distance > effect.range) return false;
+      const beamRange = typeof effect.coordinates === "number" ? effect.coordinates : 0;
+      if (beamRange > 0 && distance > beamRange) return false;
 
       // Проверяем только первую смежную клетку от заклинателя
       const stepX = pointX > startCol ? 1 : pointX < startCol ? -1 : 0;
@@ -650,7 +670,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       const nextY = startRow + stepY;
 
       const nextCell = selectedMap.map[nextY - 1]?.[nextX - 1];
-      if (pendingBeamEffect.canGoThroughWalls == false) {
+      if ((effect.canGoThroughWalls || false) === false) {
         if (!nextCell ||
           (nextCell.initial !== "empty" &&
             nextCell.initial !== "blue portal" &&
@@ -664,8 +684,8 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     }
 
     // Логика для остальных эффектов (например, зоновых способностей)
-    const range = effect.caster.type === "Маг"
-      ? effect.caster.currentRange
+    const range = caster.type === "Маг"
+      ? caster.currentRange
       : effect.coordinates === "dynamic"
         ? 0
         : effect.coordinates;
@@ -1405,10 +1425,6 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       setThrowableCells,
       throwableCells,
     });
-    if (abilitiesList[character.abilities[abilityIndex - 1].key].type === "Эффект на себя") {
-      restartAbilityCooldowns(characterName);
-      matchState.teams[character.team].remain.actions -= 1;
-    }
   };
 
   const handleAttack = async () => {
@@ -1482,8 +1498,21 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   }
 
   const handleAttackCharacter = (character) => {
-    const results = attack({ caster: selectedCharacter }, "neutral", [character], selectedCharacter.currentDamage, selectedCharacter.advancedSettings.damageType);
-    matchState.teams[selectedCharacter.team].remain.actions -= 1;
+    // Доменная логика атаки — через executeCommand (единая точка)
+    executeCommand({
+      characterName: selectedCharacter.name,
+      commandType: "attack",
+      commandObject: { target: character.name },
+    }, {
+      matchState,
+      updateMatchState,
+      addActionLog,
+      setTeam1Gold,
+      setTeam2Gold,
+      selectedMap,
+      turn: matchState.turn,
+    });
+
     if (matchState.teams[selectedCharacter.team].remain.actions === 0) {
       if (matchState.teams[selectedCharacter.team].remain.moves > 0) {
         setPendingMode("move");
@@ -1493,7 +1522,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       }
     }
 
-    if (results[0].currentHP === 0) {
+    if (character.currentHP === 0) {
       console.log("Character killed", character);
       // Добавляем смерть в список команды погибшего
       console.log('[revive:onKill] latestDeath(before)', matchState.teams[character.team].latestDeath);
@@ -1504,10 +1533,8 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
       deadTeamBucket.push(character.name);
       matchState.teams[character.team].latestDeath = deadTeamBucket;
       console.log('[revive:onKill] latestDeath(after push)', matchState.teams[character.team].latestDeath);
-      // Награда за убийство
-      matchState.teams[selectedCharacter.team].gold += 500;
-      // Сразу шлём обновление, чтобы зафиксировать смерть и золото
-      updateMatchState();
+      // executeCommand уже начислил награду/обновил state; здесь фиксируем только latestDeath
+      updateMatchState({ teams: matchState.teams }, 'partial');
 
       // Если на базе погибшей команды есть зелье воскрешения – немедленно воскрешаем
       const reviveIdx = (matchState.teams[character.team].inventory || []).findIndex((item) => item.name === "Зелье воскрешения");
@@ -1516,7 +1543,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           console.log('[revive:onKill] найдено зелье в инвентаре базы, индекс', reviveIdx);
           // Сначала тратим зелье, как по требованиям
           matchState.teams[character.team].inventory.splice(reviveIdx, 1);
-          updateMatchState();
+          updateMatchState({ teams: matchState.teams }, 'partial');
           // Затем запускаем воскрешение
           await reviveCharacter(character.name);
           // Удаляем запись о последней смерти, если это тот же персонаж
@@ -1535,8 +1562,8 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         }
       })
     }
-    console.log('[handleAttackCharacter] атака завершена', results);
-    return results[0];
+    console.log('[handleAttackCharacter] атака завершена');
+    return character;
   };
 
   const handleBuyItem = async (item) => {
@@ -1619,17 +1646,6 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         setThrowableCells,
         throwableCells,
       });
-    }
-    if (matchState.teams[selectedCharacter.team].remain.actions > 0) {
-      matchState.teams[selectedCharacter.team].remain.actions -= 1;
-    }
-    if (itemData.shopType !== "Магический") {
-      if (itemData.shopType === "Лаборатория") {
-        selectedCharacter.labCooldown = storesCooldown
-      }
-      else {
-        selectedCharacter.armoryCooldown = storesCooldown
-      }
     }
   };
 
@@ -1739,7 +1755,9 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     let cellsInZone = [];
 
     if (pendingZoneEffect.type === "Луч") {
-      const [startCol, startRow] = pendingZoneEffect.caster.position.split("-").map(Number);
+      const caster = getCharacterByName(pendingZoneEffect.casterName);
+      if (!caster) return;
+      const [startCol, startRow] = caster.position.split("-").map(Number);
       const [endCol, endRow] = coordinates.split("-").map(Number);
 
       const stepX = endCol > startCol ? 1 : endCol < startCol ? -1 : 0;
@@ -2018,8 +2036,23 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           if (pendingMode === "attack") {
             if (matchState.objectsOnMap.find(object => object.position === coordinates && object.currentHP)) {
               let building = matchState.objectsOnMap.find(object => object.position === coordinates && object.currentHP)
-              let result = attackBuilding(building, { damage: selectedCharacter.currentDamage, damageType: selectedCharacter.advancedSettings.damageType }, matchState)
-              matchState.teams[teamTurn].remain.actions -= 1;
+              const result = executeCommand({
+                characterName: selectedCharacter.name,
+                commandType: "attackBuilding",
+                commandObject: {
+                  buildingId: building.id,
+                  damage: selectedCharacter.currentDamage,
+                  damageType: selectedCharacter.advancedSettings.damageType,
+                },
+              }, {
+                matchState,
+                updateMatchState,
+                addActionLog,
+                setTeam1Gold,
+                setTeam2Gold,
+                selectedMap,
+                turn: matchState.turn,
+              }) || {};
               if (matchState.teams[teamTurn].remain.actions === 0) {
                 if (matchState.teams[teamTurn].remain.moves > 0) {
                   setPendingMode("move");
@@ -2029,7 +2062,6 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                 }
               }
               let object = matchState.objectsOnMap.find(obj => obj.position === coordinates)
-              updateMatchState();
               if (!result.isDestroyed) {
                 setDynamicTooltip({
                   coordinates,
@@ -2058,11 +2090,6 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                   ]
                 })
               } else {
-                // Если объект имел награду, начисляем её команде атакующего
-                if (building.bounty) {
-                  matchState.teams[selectedCharacter.team].gold += building.bounty;
-                  updateMatchState();
-                }
                 setDynamicTooltip(null)
               }
               setPendingMode(matchState.teams[teamTurn].remain.moves > 0 ? "move" : "null")
@@ -2145,22 +2172,20 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         }
         if (attackableCells.includes(coordinates) && pendingMode === "attack" && matchState.teams[teamTurn].remain.actions > 0) {
           if (selectedMap.map[rowIndex][colIndex].initial === "red base") {
-            let result = attackBase("red", selectedCharacter.currentDamage, matchState)
-            if (result.status.teamWon) {
-              matchState.status = "red_base_destroyed"
-            }
-            matchState.teams[teamTurn].remain.actions -= 1
-            updateMatchState();
+            executeCommand({
+              characterName: selectedCharacter.name,
+              commandType: "attackBase",
+              commandObject: { team: "red", damage: selectedCharacter.currentDamage },
+            }, { matchState, updateMatchState, addActionLog, setTeam1Gold, setTeam2Gold, selectedMap, turn: matchState.turn });
             setPendingMode(null)
             setAttackableCells([])
           }
           if (selectedMap.map[rowIndex][colIndex].initial === "blue base") {
-            let result = attackBase("blue", selectedCharacter.currentDamage, matchState)
-            if (result.status.teamWon) {
-              matchState.status = "blue_base_destroyed"
-            }
-            matchState.teams[teamTurn].remain.actions -= 1
-            updateMatchState();
+            executeCommand({
+              characterName: selectedCharacter.name,
+              commandType: "attackBase",
+              commandObject: { team: "blue", damage: selectedCharacter.currentDamage },
+            }, { matchState, updateMatchState, addActionLog, setTeam1Gold, setTeam2Gold, selectedMap, turn: matchState.turn });
             setPendingMode(null)
             setAttackableCells([])
           }
@@ -2368,9 +2393,11 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
     if (calculateCastingAllowance(cellCoord)) {
       if (beamSelectionMode) {
+        const caster = pendingBeamEffect ? getCharacterByName(pendingBeamEffect.casterName) : null;
+        if (!caster) return;
         if (pendingBeamEffect.type === "Луч с перемещением") {
           const cells = calculateBeamCellsComb(
-            pendingBeamEffect.caster.position,
+            caster.position,
             cellCoord,
             selectedMap.size,
             pendingBeamEffect.coordinates,
@@ -2380,7 +2407,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           setBeamCells(cells);
         } else if (pendingBeamEffect.type === "Луч") {
           const cells = calculateBeamCells(
-            pendingBeamEffect.caster.position,
+            caster.position,
             cellCoord,
             selectedMap.size,
             pendingBeamEffect.coordinates,
@@ -2424,41 +2451,22 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
 
   const handleEndTurn = async () => {
-    const nextTeam = teamTurn === "red" ? "blue" : "red";
-    const isNewRoundStarting = nextTeam === firstTeamToAct;
-
-    // Вызов менеджера эффектов для текущей команды (завершающей ход)
-    const effectsManager = new EffectsManager(matchState, selectedMap, addActionLog);
-    effectsManager.applyCharacterEffects(teamTurn);
-    effectsManager.applyZoneEffects(matchState.churches, teamTurn);
-
-    // Применяем эффекты активных зон на карте и уменьшаем их длительность
-    const zoneManager = new ZoneEffectsManager(matchState, selectedMap, addActionLog);
-    const zonesCount = Array.isArray(matchState.zoneEffects) ? matchState.zoneEffects.length : 0;
-    console.log(`(debug) Завершение хода команды ${teamTurn}. Активных зон: ${zonesCount}`, 'system', 'Зона');
+    let nextTeam = teamTurn === "red" ? "blue" : "red";
     try {
-      zoneManager.applyZonesAtTurnEnd(teamTurn);
-      console.log(`(debug) Обработка зон завершена.`, 'system', 'Зона');
+      const res = await endTurnEngine({
+        matchState,
+        selectedMap,
+        addActionLog,
+        teamTurn,
+        firstTeamToAct,
+        updateCreeps: async (rc) => updateCreepsAPI(rc),
+        roomCode,
+      });
+      if (res?.nextTeam) nextTeam = res.nextTeam;
     } catch (e) {
-      console.error(`(error) Обработка зон упала: ${e?.message || e}`, 'system', 'Зона');
-      console.error('[ZoneEffects] applyZonesAtTurnEnd error', e);
-    }
-
-
-
-    if (isNewRoundStarting) {
-      coolingDownAbilities();
-      coolingDownStores();
-      matchState.teams.red.remain.moves = matchState.advancedSettings.movesPerTurn;
-      matchState.teams.red.remain.actions = matchState.advancedSettings.actionsPerTurn;
-      matchState.teams.blue.remain.moves = matchState.advancedSettings.movesPerTurn;
-      matchState.teams.blue.remain.actions = matchState.advancedSettings.actionsPerTurn;
-      matchState.turn += 1;
-      // ── Логика крипов ───────────────────────────────────────────
-      if (matchState.turn >= 5) {
-        await updateCreepsAPI(roomCode);
-      }
-      addActionLog(`--- Ход ${matchState.turn} завершён ---`);
+      console.error("[handleEndTurn] endTurnEngine failed", e);
+      addActionLog?.(`(error) Завершение хода упало: ${e?.message || e}`, "error", "Ход");
+      // продолжаем: хотя бы переключим команду и синхронизируем state
     }
 
     setTeamTurn(nextTeam);
@@ -2501,11 +2509,14 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   };
 
   const restartAbilityCooldowns = (characterName) => {
-    let char = findCharacter(characterName, matchState);
+    const lower = String(characterName || "").toLowerCase();
+    const char =
+      matchState.teams.red.characters.find((ch) => String(ch.name || "").toLowerCase() === lower) ||
+      matchState.teams.blue.characters.find((ch) => String(ch.name || "").toLowerCase() === lower);
+    if (!char || !Array.isArray(char.abilities)) return;
     char.abilities.forEach(ability => {
       ability.currentCooldown = ability.coolDown;
     });
-    updateMatchState();
   }
 
   const coolingDownAbilities = () => {
@@ -2537,19 +2548,52 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   }
 
   const confirmBuilding = () => {
+    executeCommand({
+      characterName: selectedCharacter.name,
+      commandType: "buildBatch",
+      commandObject: {
+        positions: buildingDestination,
+        building: {
+          ...pendingItem,
+          name: pendingItem.name === "Стена (х3)" ? "Стена" : pendingItem.name,
+          image: pendingItem.image,
+          initial: pendingItem.initial,
+          description: pendingItem.description,
+          stats: pendingItem.stats,
+          currentHP: pendingItem.currentHP,
+          currentMana: pendingItem.currentMana,
+          currentDamage: pendingItem.currentDamage,
+          currentAgility: pendingItem.currentAgility,
+          currentArmor: pendingItem.currentArmor,
+          currentRange: pendingItem.currentRange,
+          onBuild: pendingItem.onBuild,
+          onFinishTurn: pendingItem.onFinishTurn,
+          onCharactersInZone: pendingItem.onCharactersInZone,
+          onHit: pendingItem.onHit,
+          onDestroy: pendingItem.onDestroy,
+        },
+      },
+    }, {
+      matchState,
+      updateMatchState,
+      addActionLog,
+      setTeam1Gold,
+      setTeam2Gold,
+      selectedMap,
+      turn: matchState.turn,
+    });
+
+    // Инвентарь UI: списываем предмет после успешного построения
     for (let i = 0; i < buildingDestination.length; i++) {
-      handleBuild(selectedCharacter, pendingItem, buildingDestination[i]);
       if (pendingItem.name === "Стена (х3)") {
         selectedCharacter.inventory.find(item => item.name === "Стена (х3)").left -= 1;
         if (selectedCharacter.inventory.find(item => item.name === "Стена (х3)").left === 0) {
           selectedCharacter.inventory = selectedCharacter.inventory.filter(item => item.name !== "Стена (х3)");
         }
-      }
-      else {
+      } else {
         selectedCharacter.inventory = selectedCharacter.inventory.filter(item => item.name !== pendingItem.name);
       }
     }
-    matchState.teams[teamTurn].remain.actions -= 1;
     setBuildingMode(false);
     setBuildingCells([]);
     setBuildingDestination([]);
@@ -2565,106 +2609,30 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
 
   const confirmZoneEffect = () => {
     if (!pendingZoneEffect) return;
+    const abilityObj = abilitiesList[pendingZoneEffect.spellKey];
+    const caster = getCharacterByName(pendingZoneEffect.casterName);
+    if (!abilityObj || !caster) return;
 
-    if (pendingZoneEffect.type === "Заряды по области") {
-      const preparedCharacters = charactersInZone
-        .map((ch) => ({
-          ch,
-          amount: chargesDistribution[ch.name] || 0,
-        }))
-        .filter((item) => item.amount > 0);
-
-      pendingZoneEffect.effectPerAttack({
-        affectedCharacters: preparedCharacters,
-        addActionLog,
-      });
-    } else if (
-      pendingZoneEffect.type === "Мгновенная область способности" &&
-      pendingZoneEffect.zoneEffect
-    ) {
-      pendingZoneEffect.zoneEffect(charactersInZone);
-    }
-    if (pendingZoneEffect.type === "Область с перемещением") {
-      pendingZoneEffect.zoneEffect(charactersInZone);
-      // Перемещаем персонажа в центр выбранной области
-      if (selectionOverlay.length > 0) {
-        // Находим центр области
-        let sumX = 0, sumY = 0;
-        selectionOverlay.forEach(cell => {
-          const [col, row] = cell.split("-").map(Number);
-          sumX += col;
-          sumY += row;
-        });
-
-        // Вычисляем среднее значение координат (центр области)
-        const centerX = Math.round(sumX / selectionOverlay.length);
-        const centerY = Math.round(sumY / selectionOverlay.length);
-        const centerCoord = `${centerX}-${centerY}`;
-
-        // Определяем команду персонажа
-        const casterTeam = matchState.teams.red.characters.some(
-          ch => ch.name === pendingZoneEffect.caster.name
-        ) ? "red" : "blue";
-
-        // Обновляем позицию персонажа
-        const updatedCharacter = { ...pendingZoneEffect.caster, position: centerCoord };
-
-        // Обновляем состояние матча
-        const updatedTeams = { ...matchState.teams };
-        updatedTeams[casterTeam].characters = updatedTeams[casterTeam].characters.map(ch =>
-          ch.name === pendingZoneEffect.caster.name ? updatedCharacter : ch
-        );
-
-        matchState.teams[casterTeam].remain.actions -= 1;
-        updateMatchState({ teams: updatedTeams }, 'partial');
-        addActionLog(`${pendingZoneEffect.caster.name} перемещается в центр области (${centerCoord})`);
-      }
-    }
-
-    // Если это «Размещение области с эффектом зоны» и у способности есть длительность – создаём постоянную зону
-    if (
-      pendingZoneEffect.type === "Размещение области с эффектом зоны" &&
-      typeof pendingZoneEffect.turnsRemain === "number" &&
-      pendingZoneEffect.turnsRemain > 0
-    ) {
-      if (!Array.isArray(matchState.zoneEffects)) matchState.zoneEffects = [];
-      const zoneManager = new ZoneEffectsManager(matchState, selectedMap, addActionLog);
-      // Центр зоны – средняя точка выделения либо точка клика
-      const center = selectionOverlay?.length
-        ? (() => {
-          let sumX = 0, sumY = 0;
-          selectionOverlay.forEach(cell => {
-            const [col, row] = cell.split("-").map(Number);
-            sumX += col;
-            sumY += row;
-          });
-          const cx = Math.round(sumX / selectionOverlay.length);
-          const cy = Math.round(sumY / selectionOverlay.length);
-          return `${cx}-${cy}`;
-        })()
-        : charactersInZone[0]?.position || pendingZoneEffect.caster.position;
-
-      zoneManager.createZone({
-        id: `zone_${Date.now()}`,
-        name: pendingZoneEffect.name,
-        affiliate: pendingZoneEffect.affiliate || "neutral",
-        stats: pendingZoneEffect.stats || {},
-        turnsRemain: pendingZoneEffect.turnsRemain,
-        coordinates: pendingZoneEffect.coordinates,
-        chase: pendingZoneEffect.chase,
-        caster: pendingZoneEffect.caster,
-        center,
-        zoneEffect: pendingZoneEffect.zoneEffect,
-      });
-      updateMatchState({ zoneEffects: matchState.zoneEffects }, 'partial');
-    }
+    applyAbilitySelection({
+      spellKey: pendingZoneEffect.spellKey,
+      casterName: pendingZoneEffect.casterName,
+      matchState,
+      selectedMap,
+      addActionLog,
+      teamTurn,
+      selection: {
+        charactersInZone,
+        selectionOverlay,
+        chargesDistribution,
+      },
+    });
 
     // Очищаем состояния
     setZoneSelectionMode(false);
     setZoneFixed(false);
     setSelectionOverlay([]);
     setPendingZoneEffect(null);
-    restartAbilityCooldowns(pendingZoneEffect.caster.name);
+    // КД/списание действий делается в AbilityEngine
     setAttackAnimations([...charactersInZone.map(ch => {
       return {
         position: ch.position,
@@ -2673,126 +2641,33 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     })]);
     setCharactersInZone([]);
     setChargesDistribution({});
-    matchState.teams[teamTurn].remain.actions -= 1;
+    updateMatchState();
   };
 
   const confirmBeamEffect = () => {
     if (!pendingBeamEffect) return;
+    const abilityObj = abilitiesList[pendingBeamEffect.spellKey];
+    const caster = getCharacterByName(pendingBeamEffect.casterName);
+    if (!abilityObj || !caster) return;
 
-    pendingBeamEffect.beamEffect(charactersInZone);
-    if (pendingBeamEffect.type === "Луч с перемещением") {
-      // Определяем команду персонажа
-      const casterTeam = matchState.teams.red.characters.some(
-        ch => ch.name === pendingBeamEffect.caster.name
-      ) ? "red" : "blue";
-
-      // Получаем позицию персонажа, который использует способность
-      const [casterCol, casterRow] = pendingBeamEffect.caster.position.split("-").map(Number);
-
-      // Определяем направление луча, используя первую клетку в beamCells
-      if (beamCells.length > 0) {
-        const [firstBeamCol, firstBeamRow] = beamCells[0].split("-").map(Number);
-
-        // Вычисляем направление луча
-        const dirX = firstBeamCol > casterCol ? 1 : firstBeamCol < casterCol ? -1 : 0;
-        const dirY = firstBeamRow > casterRow ? 1 : firstBeamRow < casterRow ? -1 : 0;
-
-        // Находим длину центральной линии луча
-        let maxDistance = 0;
-        let endPosition = null;
-
-        // Проходим по всем клеткам луча, чтобы найти самую дальнюю клетку в направлении луча
-        beamCells.forEach(cell => {
-          const [cellCol, cellRow] = cell.split("-").map(Number);
-
-          // Проверяем, находится ли клетка на центральной линии
-          const isOnCentralLine =
-            (dirX === 0 && cellCol === casterCol) ||
-            (dirY === 0 && cellRow === casterRow) ||
-            (Math.abs(cellCol - casterCol) === Math.abs(cellRow - casterRow) &&
-              Math.sign(cellCol - casterCol) === dirX &&
-              Math.sign(cellRow - casterRow) === dirY);
-
-          if (isOnCentralLine) {
-            const distance = Math.max(
-              Math.abs(cellCol - casterCol),
-              Math.abs(cellRow - casterRow)
-            );
-
-            if (distance > maxDistance) {
-              maxDistance = distance;
-              endPosition = cell;
-            }
-          }
-        });
-
-        if (endPosition) {
-          // Проверяем, свободна ли конечная позиция
-          let targetPosition = endPosition;
-          let isCellOccupied = false;
-
-          // Проверяем, есть ли персонаж на целевой клетке
-          ["red", "blue"].forEach(team => {
-            matchState.teams[team].characters.forEach(ch => {
-              if (ch.position === targetPosition && ch.currentHP > 0) {
-                isCellOccupied = true;
-              }
-            });
-          });
-
-          // Если клетка занята, ищем ближайшую свободную
-          if (isCellOccupied) {
-            const [endCol, endRow] = endPosition.split("-").map(Number);
-            const adjacentCells = [
-              `${endCol + 1}-${endRow}`, `${endCol - 1}-${endRow}`,
-              `${endCol}-${endRow + 1}`, `${endCol}-${endRow - 1}`,
-              `${endCol + 1}-${endRow + 1}`, `${endCol - 1}-${endRow - 1}`,
-              `${endCol + 1}-${endRow - 1}`, `${endCol - 1}-${endRow + 1}`
-            ];
-
-            // Фильтруем клетки, которые находятся в пределах карты
-            const validCells = adjacentCells.filter(cell => {
-              const [col, row] = cell.split("-").map(Number);
-              return col >= 1 && col <= selectedMap.size[0] &&
-                row >= 1 && row <= selectedMap.size[1];
-            });
-
-            // Проверяем, какие клетки свободны
-            const freeCells = validCells.filter(cell => {
-              let isOccupied = false;
-              ["red", "blue"].forEach(team => {
-                matchState.teams[team].characters.forEach(ch => {
-                  if (ch.position === cell && ch.currentHP > 0) {
-                    isOccupied = true;
-                  }
-                });
-              });
-              return !isOccupied;
-            });
-
-            if (freeCells.length > 0) {
-              // Выбираем случайную свободную клетку
-              targetPosition = freeCells[Math.floor(Math.random() * freeCells.length)];
-            }
-          }
-
-          // Перемещаем персонажа
-          const updatedCharacter = { ...pendingBeamEffect.caster, position: targetPosition };
-
-          // Обновляем состояние матча
-          const updatedTeams = { ...matchState.teams };
-          updatedTeams[casterTeam].characters = updatedTeams[casterTeam].characters.map(ch =>
-            ch.name === pendingBeamEffect.caster.name ? updatedCharacter : ch
-          );
-
-          matchState.teams[casterTeam].remain.actions -= 1;
-          updateMatchState({ teams: updatedTeams }, 'partial');
-          addActionLog(`${pendingBeamEffect.caster.name} перемещается на ${targetPosition} после применения луча.`);
-        }
-      }
+    applyAbilitySelection({
+      spellKey: pendingBeamEffect.spellKey,
+      casterName: pendingBeamEffect.casterName,
+      matchState,
+      selectedMap,
+      addActionLog,
+      teamTurn,
+      selection: { beamCells, charactersInZone },
+    });
+    if (typeof pendingBeamEffect?.stats?.damage === "number" && pendingBeamEffect.stats.damage > 0) {
+      addActionLog(
+        `Луч ${pendingBeamEffect.name} нанес урон персонажам: ${charactersInZone
+          .map((ch) => ch.name)
+          .join(", ")}`
+      );
+    } else {
+      addActionLog(`Луч ${pendingBeamEffect.name} применён.`);
     }
-    addActionLog(`Луч ${pendingBeamEffect.name} нанес урон персонажам: ${charactersInZone.map((ch) => ch.name).join(", ")}`);
-    matchState.teams[teamTurn].remain.actions -= 1;
     setBeamSelectionMode(false);
     setBeamFixed(false);
     setSelectionOverlay([]);
@@ -2805,19 +2680,31 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     })]);
     setCharactersInZone([]);
     setBeamCells([]);
-    restartAbilityCooldowns(pendingBeamEffect.caster.name);
+    // КД/списание действий делается в AbilityEngine
+    updateMatchState();
   };
 
   const confirmPointEffect = () => {
     if (!pendingPointEffect) return;
+    const abilityObj = abilitiesList[pendingPointEffect.spellKey];
+    const caster = getCharacterByName(pendingPointEffect.casterName);
+    if (!abilityObj || !caster) return;
 
-    pendingPointEffect.effect(charactersAtPoint);
-    matchState.teams[teamTurn].remain.actions -= 1;
+    applyAbilitySelection({
+      spellKey: pendingPointEffect.spellKey,
+      casterName: pendingPointEffect.casterName,
+      matchState,
+      selectedMap,
+      addActionLog,
+      teamTurn,
+      selection: { pointDestination, charactersAtPoint },
+    });
     setPointSelectionMode(false);
     setPointCells([]);
     setPointDestination(null);
     setPendingPointEffect(null);
-    restartAbilityCooldowns(pendingPointEffect.caster.name);
+    // КД/списание действий делается в AbilityEngine
+    updateMatchState();
   };
 
   // Функция закрытия модального окна персонажа
@@ -2978,8 +2865,15 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   };
 
   const calculatePointCells = async (startCoord, range, mapSize, canGoThroughWalls = false) => {
-    console.log(startCoord, range, mapSize, canGoThroughWalls);
-    const [startCol, startRow] = await splitCoord(startCoord);
+    // Эта функция нужна именно на фронте для подсветки допустимых клеток в режиме "Точка".
+    // На бэке нет отдельного эндпоинта calculatePointCells, поэтому считаем локально (без API),
+    // иначе из-за truthy-ответов/задержек можно получать пустые наборы и падения UI.
+
+    const size = Array.isArray(mapSize) ? mapSize : selectedMap?.size;
+    if (!startCoord || !size) return [];
+
+    // Локальный split (без API): координаты в интерфейсе 1-based ("x-y")
+    const [startCol, startRow] = splitCoordLocal(startCoord, 0);
     const cells = new Set(); // Используем Set для уникальных координат
 
     // Направления: вниз, вверх, вправо, влево
@@ -2998,7 +2892,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         const currY = startRow + stepY * (i + 1);
 
         // Если клетка выходит за границы карты, завершаем линию
-        if (currX < 1 || currX > mapSize[0] || currY < 1 || currY > mapSize[1]) break;
+        if (currX < 1 || currX > size[0] || currY < 1 || currY > size[1]) break;
 
         const cell = selectedMap.map[currY - 1]?.[currX - 1];
         // Если клетки нет, прерываем
@@ -3007,9 +2901,12 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         const cellCoord = `${currX}-${currY}`;
 
         // Проверяем, есть ли на клетке персонаж
-        const hasCharacter = ["red", "blue"].some(team =>
-          matchState.teams[team].characters.some(ch => ch.position === cellCoord && ch.currentHP > 0)
+        const hasCharacter = ["red", "blue"].some((team) =>
+          (matchState.teams?.[team]?.characters || []).some(
+            (ch) => ch.position === cellCoord && ch.currentHP > 0
+          )
         );
+        const hasObject = !!objectOnCellLocal(cellCoord);
 
         // Если можем проходить сквозь стены, проверяем только персонажей
         if (canGoThroughWalls) {
@@ -3020,7 +2917,10 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
           if (hasCharacter) break;
         } else {
           // Если не можем проходить сквозь стены, проверяем все препятствия
-          if (["red base", "blue base", "magic shop", "laboratory", "armory"].includes(cell.initial) || (await objectOnCell(`${currX}-${currY}`, roomCode))) {
+          if (
+            ["red base", "blue base", "magic shop", "laboratory", "armory"].includes(cell.initial) ||
+            hasObject
+          ) {
             break;
           }
 
@@ -3032,6 +2932,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         }
       }
     }
+    console.log('cells', cells);
     return Array.from(cells);
   };
 
@@ -3126,7 +3027,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
               classes.push("beam-selection");
             if (throwableCells.includes(cellKey) || buildingCells.includes(cellKey))
               classes.push("throwable-cell");
-            if (teleportationCells.includes(cellKey) && cellKey !== teleportationDestination)
+            if (teleportationCells?.includes(cellKey) && cellKey !== teleportationDestination)
               classes.push("cell--teleport-available");
             if (teleportationDestination === cellKey)
               classes.push("cell--teleport-target");
@@ -3299,7 +3200,7 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
         colEnd = isLeftHalf ? Math.floor(mapSize[0] / 2) : mapSize[0];
       } else {
         // Обычный радиус телепортации
-        rowStart = (1, startRow - range);
+        rowStart = Math.max(1, startRow - range);
         rowEnd = Math.min(mapSize[1], startRow + range);
         colStart = Math.max(1, startCol - range);
         colEnd = Math.min(mapSize[0], startCol + range);
@@ -3335,21 +3236,16 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
   const handleTeleportation = (targetCoord) => {
     if (!pendingTeleportation) return;
 
-    // Определяем команду персонажа
-    const casterTeam = pendingTeleportation.caster.team
-
-    // Обновляем позицию персонажа
-    const updatedCharacter = { ...pendingTeleportation.caster, position: targetCoord };
-
-    // Обновляем состояние матча
-    const updatedTeams = { ...matchState.teams };
-    updatedTeams[casterTeam].characters = updatedTeams[casterTeam].characters.map(ch =>
-      ch.name === pendingTeleportation.caster.name ? updatedCharacter : ch
-    );
-
-    updatedTeams[casterTeam].remain.actions -= 1;
-    updateMatchState({ teams: updatedTeams }, 'partial');
-    addActionLog(`${pendingTeleportation.caster.name} телепортируется на ${targetCoord}`);
+    applyAbilitySelection({
+      spellKey: pendingTeleportation.spellKey,
+      casterName: pendingTeleportation.casterName,
+      matchState,
+      selectedMap,
+      addActionLog,
+      teamTurn,
+      selection: { targetCoord },
+    });
+    const caster = getCharacterByName(pendingTeleportation.casterName);
 
     // Очищаем состояния телепортации
     setTeleportationMode(false);
@@ -3357,15 +3253,15 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
     setTeleportationCells([]);
     setTeleportationDestination(null);
     setSelectionOverlay([]);
-    restartAbilityCooldowns(pendingTeleportation.caster.name);
-    if (matchState.teams[casterTeam].remain.moves > 0) {
+    if (caster && matchState.teams[teamTurn].remain.moves > 0) {
       setPendingMode("move")
-      setReachableCells(calculateReachableCells(updatedCharacter.position, updatedCharacter.currentAgility))
+      setReachableCells(calculateReachableCells(caster.position, caster.currentAgility))
     }
     else {
       setReachableCells([])
       setPendingMode(null)
     }
+    updateMatchState();
   };
 
   const redChars = useMemo(
@@ -4359,67 +4255,21 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
                 onClick={() => {
                   if (!throwDestination || !pendingItem) return;
                   try {
-                    console.log('[ThrowConfirm] try create zone for item', pendingItem?.name, 'at', throwDestination);
-                    console.log('[ThrowConfirm] pendingItem full', JSON.parse(JSON.stringify(pendingItem)));
-                    // Если у предмета есть зональный эффект – создаём зону по data.js
-                    const item = pendingItem;
-                    const fallbackDef = availableItems.find((it) => it.name === item.name);
-                    const effect = item?.stats?.effect || fallbackDef?.stats?.effect;
-                    console.log('[ThrowConfirm] resolved effect source', {
-                      fromItem: typeof (item?.stats?.effect) === 'function',
-                      fromFallback: typeof (fallbackDef?.stats?.effect) === 'function',
+                    executeCommand({
+                      characterName: selectedCharacter.name,
+                      commandType: "throwZoneItem",
+                      commandObject: {
+                        itemId: pendingItem.id,
+                        itemName: pendingItem.name,
+                        targetCoord: throwDestination,
+                      },
+                    }, {
+                      matchState,
+                      updateMatchState,
+                      addActionLog,
+                      selectedMap,
+                      turn: matchState.turn,
                     });
-                    if (typeof effect === 'function') {
-                      if (!Array.isArray(matchState.zoneEffects)) matchState.zoneEffects = [];
-                      const zoneConfig = effect({ usedBy: selectedCharacter, targetCoord: throwDestination });
-                      console.log('[ThrowConfirm] zoneConfig', zoneConfig);
-                      const manager = new ZoneEffectsManager(matchState, selectedMap, addActionLog);
-                      const createdZone = manager.createZone({
-                        name: zoneConfig.name,
-                        affiliate: zoneConfig.affiliate || item.stats.affiliation || 'neutral',
-                        stats: zoneConfig.stats || {},
-                        turnsRemain: zoneConfig.turnsRemain || 3,
-                        coordinates: zoneConfig.coordinates || 0,
-                        chase: zoneConfig.chase || null,
-                        caster: selectedCharacter,
-                        usedBy: { name: selectedCharacter.name, team: selectedCharacter.team },
-                        sourceItem: { id: item.id, name: item.name },
-                        center: zoneConfig.center || throwDestination,
-                        handlerKey: zoneConfig.handlerKey || null,
-                        characterEffect: zoneConfig.characterEffect,
-                        zoneEffect: zoneConfig.zoneEffect,
-                      });
-                      console.log('[ThrowConfirm] createdZone meta', { id: createdZone?.id, handlerKey: createdZone?.handlerKey, hasCCE: typeof createdZone?.customCharacterEffect === 'function' });
-                      // списываем предмет у владельца
-                      const nextTeams = deepClone(matchState.teams);
-                      const owner = nextTeams[selectedCharacter.team].characters.find(ch => ch.name === selectedCharacter.name);
-                      if (owner) {
-                        let idx = owner.inventory.findIndex(it => it.id === item.id);
-                        if (idx === -1) {
-                          idx = owner.inventory.findIndex(it => it.name === item.name);
-                        }
-                        if (idx !== -1) owner.inventory.splice(idx, 1);
-                      }
-                      // Добавляем визуальный объект в центр зоны (неподбираемый)
-                      const zoneCenter = zoneConfig.center || throwDestination;
-                      const newObjects = [
-                        ...matchState.objectsOnMap,
-                        {
-                          id: item.id || `drop_${Date.now()}`,
-                          type: 'item',
-                          name: item.name,
-                          image: item.image,
-                          description: item.description || 'Брошенный предмет',
-                          position: zoneCenter,
-                          team: selectedCharacter.team,
-                          pickable: false,
-                          zoneId: createdZone?.id || null,
-                        }
-                      ];
-                      matchState.teams[selectedCharacter.team].remain.actions -= 1;
-                      updateMatchState({ zoneEffects: matchState.zoneEffects, teams: nextTeams, objectsOnMap: newObjects }, 'partial');
-                      console.log('[ThrowConfirm] zone created, state updated');
-                    }
                   } catch (e) {
                     console.error('[ThrowConfirm] failed', e);
                   }
@@ -4540,17 +4390,14 @@ const ChatConsole = ({ socket, user: initialUser, room, teams, selectedMap, matc
               <>
                 {!itemHelperInfo.throwable && selectedCharacter && selectedCharacter.inventory.find(item => item.id === itemHelperInfo.id) &&
                   <button className="tooltip-button" disabled={matchState.teams[teamTurn].remain.actions === 0} onClick={() => {
-                    itemHelperInfo.effect(selectedCharacter)
-                    if (itemHelperInfo.isSingleUse) {
-                      selectedCharacter.inventory.splice(selectedCharacter.inventory.indexOf(itemHelperInfo), 1)
-                      setItemHelperInfo(null)
-                      if (matchState.teams[teamTurn].remain.moves > 0) {
-                        setPendingMode("move")
-                      } else {
-                        setPendingMode(null)
-                      }
-                    }
-                    matchState.teams[teamTurn].remain.actions -= 1
+                    executeCommand({
+                      characterName: selectedCharacter.name,
+                      commandType: "useItem",
+                      commandObject: { itemId: itemHelperInfo.id, itemName: itemHelperInfo.name },
+                    }, { matchState, updateMatchState, addActionLog, selectedMap, turn: matchState.turn });
+
+                    // UI-сброс, если предмет расходуемый
+                    if (itemHelperInfo.isSingleUse) setItemHelperInfo(null);
                     if (matchState.teams[teamTurn].remain.moves > 0) {
                       setPendingMode("move");
                     } else {

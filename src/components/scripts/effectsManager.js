@@ -1,6 +1,9 @@
 // components/scripts/EffectsManager.js
 // управляет зонами и персональными эффектами в конце хода
 
+import { tickEffect } from "../../gameEngine/effects/effectRegistry";
+import { addEffect } from "../../effects";
+
 export default class EffectsManager {
   constructor(matchState, selectedMap, addActionLog) {
     this.state = matchState;
@@ -94,62 +97,30 @@ export default class EffectsManager {
       const eff = character.effects[i];
       console.log('[EffectsManager] tick start', { character: character.name, effect: eff?.name, type: eff?.typeOfEffect, turnsRemain: eff?.turnsRemain });
 
-      // Восстанавливаем потерянные функции effect/consequence из реестра (после сериализации)
-      if (typeof window !== 'undefined' && window.__charEffectHandlers && eff?.effectId) {
-        const rec = window.__charEffectHandlers[eff.effectId];
-        if (rec) {
-          if (typeof eff.effect !== 'function' && typeof rec.effect === 'function') eff.effect = rec.effect;
-          if (typeof eff.consequence !== 'function' && typeof rec.consequence === 'function') eff.consequence = rec.consequence;
+      // 1) Новый формат (effectKey)
+      if (eff?.effectKey) {
+        const res = tickEffect(eff, character, this.state, this.log, { addEffect });
+        if (res?.remove) {
+          const name = eff?.name || eff?.effectKey;
+          character.effects.splice(i, 1);
+          this.log?.(`⏳ Эффект «${name}» на ${character.name} закончился`, "system", "Эффект");
         }
+        continue;
       }
 
-      // 1. эффекты, работающие каждый ход
-      if (eff.typeOfEffect === "each turn" && typeof eff.effect === "function") {
-        try {
-          const prevHP = character.currentHP ?? 0;
-          const prevArmor = character.currentArmor ?? 0;
-          eff.effect(character, this.state);    // передаём state на случай сложной логики
-          const newHP = character.currentHP ?? 0;
-          const newArmor = character.currentArmor ?? 0;
-          const hpDelta = prevHP - newHP;
-          const armorDelta = prevArmor - newArmor;
-          console.log('[EffectsManager] effect applied', { character: character.name, effect: eff.name, prevHP, newHP, hpDelta, prevArmor, newArmor, armorDelta });
-          if (eff.name === 'Яд') {
-            console.log('[Poison][tick]', character.name, { prevHP, newHP, hpDelta, prevArmor, newArmor, armorDelta, turnsRemain: eff.turnsRemain });
-            if (character.name === 'Саламандра') {
-              console.log('[Poison][Salamandra] tick', { prevHP, newHP, hpDelta, prevArmor, newArmor, armorDelta, turnsRemain: eff.turnsRemain });
-            }
-          }
-        } catch (e) {
-          console.error('[EffectsManager] effect apply error', eff?.name, e);
-        }
+      // 2) Legacy-совместимость: если в состоянии остались функции, просто исполняем их как есть
+      // (без window-реестров). Такие эффекты не переживают сериализацию и будут постепенно мигрированы.
+      if (eff?.typeOfEffect === "each turn" && typeof eff.effect === "function") {
+        try { eff.effect(character, this.state); } catch (e) { console.error("[EffectsManager][legacy] effect error", e); }
       }
-
-      // 2. счётчик длительности
-      if (eff.permanent) continue;            // пассивки/перманентные не уменьшаем
-      if (typeof eff.turnsRemain === "number") {
+      if (!eff?.permanent && typeof eff?.turnsRemain === "number") {
         eff.turnsRemain -= 1;
-        console.log('[EffectsManager] effect decrement', { character: character.name, effect: eff.name, turnsRemain: eff.turnsRemain });
         if (eff.turnsRemain <= 0) {
-          if (eff.name === 'Яд') {
-            console.log('[Poison] finishing for', character.name);
-          }
-          // 3. завершаем эффект
           if (typeof eff.consequence === "function") {
-            try {
-              eff.consequence(character, this.state);
-              console.log('[EffectsManager] effect consequence', { character: character.name, effect: eff.name });
-            } catch (e) {
-              console.error('[EffectsManager] effect consequence error', eff?.name, e);
-            }
+            try { eff.consequence(character, this.state); } catch (e) { console.error("[EffectsManager][legacy] consequence error", e); }
           }
           character.effects.splice(i, 1);
-          this.log(
-            `⏳ Эффект «${eff.name}» на ${character.name} закончился`,
-            "system",
-            "Эффект"
-          );
-          console.log('[EffectsManager] effect removed', { character: character.name, effect: eff.name });
+          this.log?.(`⏳ Эффект «${eff?.name || "?"}» на ${character.name} закончился`, "system", "Эффект");
         }
       }
     }

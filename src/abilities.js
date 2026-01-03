@@ -2,9 +2,10 @@
 // Универсальные pointAttack / multiAttack работают без явного параметра «attacker».
 // Внутри effect / beamEffect / zoneEffect мы вызываем их так: pointAttack(this, target)
 // где `this` — сам объект способности. Все стат-поля берутся из него.
+/* eslint-disable no-unused-vars, no-irregular-whitespace */
 
 import { attack } from "./components/scripts/attack";
-import { addEffect, agilityBoost, poisonousAttack, shield, silence, vampirism } from "./effects";
+import { addEffect, agilityBoost, poisonousAttack, shield, silence } from "./effects";
 
 /**
  * Одноцелевой удар.
@@ -203,38 +204,104 @@ export const abilities = {
   wendigo_pull: {
     name: "Притягивание",
     coolDown: 10,
-    type: "Точечное накладывание эффекта",
+    type: "Луч",
     putBy: "Вендиго",
     coordinates: 6,
     turnsRemain: 4,
-    affiliate: "negative neutral",
-    effect: (ch, itself) => {
-      // Притягиваем цель к Вендиго (упрощённый пример)
-      // В оригинале можно считать точные координаты и смещать
+    affiliate: "negative only",
+    stats: {
+      beamWidth: 1,
+    },
+    beamEffect: function (_affectedCharacters, ctx) {
+      const { matchState, selectedMap, addActionLog, beamCells } = ctx || {};
+      const caster = ctx?.caster || this?.caster;
+      if (!caster?.position || !matchState || !selectedMap || !Array.isArray(beamCells)) return;
 
-      // Отключаем перемещение и действие у цели
-      ch.functions.movementAbility = false;
-      ch.functions.actionAbility = false;
+      const findCharacterAt = (pos) => {
+        if (!pos) return null;
+        const all = [
+          ...(matchState.teams?.red?.characters || []),
+          ...(matchState.teams?.blue?.characters || []),
+        ];
+        return all.find((ch) => ch.currentHP > 0 && ch.position === pos) || null;
+      };
 
-      ch.effects.push({
-        name: "Захват Вендиго",
+      // Луч «останавливается» на первом персонаже на пути
+      let firstHit = null;
+      for (const cell of beamCells) {
+        const ch = findCharacterAt(cell);
+        if (ch) {
+          firstHit = ch;
+          break;
+        }
+      }
+
+      if (!firstHit) {
+        addActionLog?.(`Притягивание: на линии луча нет персонажей.`);
+        return;
+      }
+
+      // Если первым оказался не враг — способность не срабатывает (по правилу "остановки на первом")
+      if (firstHit.team === caster.team) {
+        addActionLog?.(
+          `Притягивание: первым на луче оказался союзник (${firstHit.name}) — притягивание не сработало.`
+        );
+        return;
+      }
+
+      const [cx, cy] = caster.position.split("-").map(Number);
+      const [tx, ty] = firstHit.position.split("-").map(Number);
+      const stepX = tx === cx ? 0 : tx > cx ? 1 : -1;
+      const stepY = ty === cy ? 0 : ty > cy ? 1 : -1;
+
+      // Ищем ближайшую к Вендиго свободную клетку по линии (вплотную по умолчанию)
+      const dist = Math.max(Math.abs(tx - cx), Math.abs(ty - cy));
+      const isBlockedCell = (pos) => {
+        const [x, y] = pos.split("-").map(Number);
+        const cell = selectedMap.map?.[y - 1]?.[x - 1];
+        if (!cell) return true;
+        const blocked = ["red base", "blue base", "magic shop", "laboratory", "armory"];
+        if (blocked.includes(cell.initial)) return true;
+        if ((matchState.objectsOnMap || []).some((obj) => obj.position === pos)) return true;
+        return false;
+      };
+      const isOccupiedByCharacter = (pos) => {
+        const c = findCharacterAt(pos);
+        return !!c;
+      };
+
+      let destination = null;
+      for (let i = 1; i < dist; i++) {
+        const pos = `${cx + stepX * i}-${cy + stepY * i}`;
+        if (isBlockedCell(pos)) continue;
+        if (isOccupiedByCharacter(pos)) continue;
+        destination = pos;
+        break;
+      }
+
+      if (!destination) {
+        addActionLog?.(`Притягивание: нет свободной клетки, чтобы притянуть ${firstHit.name}.`);
+        return;
+      }
+
+      firstHit.position = destination;
+      addActionLog?.(`Вендиго притягивает ${firstHit.name} на ${destination}.`);
+
+      // Дебафф: 4 хода нельзя двигаться, действовать можно
+      firstHit.functions = firstHit.functions || {};
+      const prevMove = firstHit.functions.movementAbility !== false; // default true
+      firstHit.functions.movementAbility = false;
+      addEffect(firstHit, {
+        name: "Притягивание Вендиго",
+        description: "Не может перемещаться 4 хода, но может действовать.",
         effectType: "negative",
+        canCancel: false,
+        typeOfEffect: "one time",
         turnsRemain: 4,
-        consequence: (char) => {
-          char.functions.movementAbility = true;
-          char.functions.actionAbility = true;
-        },
-      });
-
-      // Вендиго теряет ловкость на время "захвата"
-      itself.stats.current.Ловкость = 0;
-      itself.effects.push({
-        name: "Захват цели (Вендиго)",
-        turnsRemain: 4,
-        effectType: "neutral",
-        canSelfStop: true,
-        consequence: (char) => {
-          char.stats.current.Ловкость = char.stats.Ловкость;
+        effect: () => { },
+        consequence: (ch) => {
+          // Восстанавливаем предыдущее состояние (не ломаем другие блокировки)
+          if (prevMove) ch.functions.movementAbility = true;
         },
       });
     },
@@ -243,43 +310,199 @@ export const abilities = {
   wendigo_possession: {
     name: "Вселение",
     coolDown: 12,
-    type: "Вселение",
+    type: "Точка",
     putBy: "Вендиго",
-    coordinates: 1,
+    distance: 1,
     turnsRemain: 4,
-    affiliate: "positive neutral",
-    effect: (ch, itself, matchState) => {
-      // Проверяем, что у цели <= 25% HP
-      if (ch.stats.current.HP <= ch.stats.HP * 0.25) {
-        // Накладываем эффект "одержимости"
-        ch.effects.push({
-          name: "Одержимость Вендиго",
-          effectType: "negative",
-          turnsRemain: 4,
-          consequence: (target) => {
-            // После окончания эффекта цель погибает
-            target.stats.current.HP = 0;
-            // Вендиго появляется на месте цели
-            itself.position = target.position;
-          },
-        });
+    affiliate: "negative only",
+    effect: function (targetsAtPoint, ctx) {
+      const { matchState, selectedMap, addActionLog } = ctx || {};
+      const wendigo = ctx?.caster || this?.caster;
+      if (!wendigo || !matchState || !selectedMap) return;
 
-        // Меняем команду цели (упрощённый пример)
-        const targetTeam = ch.team === "red" ? "blue" : "red";
-        const wendigoTeam = itself.team;
+      const wendigoName = wendigo.name;
+      const findByName = (state, name) => {
+        const lower = String(name || "").toLowerCase();
+        return (
+          state?.teams?.red?.characters?.find((ch) => String(ch?.name || "").toLowerCase() === lower) ||
+          state?.teams?.blue?.characters?.find((ch) => String(ch?.name || "").toLowerCase() === lower) ||
+          null
+        );
+      };
+      const teamKeyOf = (state, name) => {
+        const lower = String(name || "").toLowerCase();
+        if (state?.teams?.red?.characters?.some((ch) => String(ch?.name || "").toLowerCase() === lower)) return "red";
+        if (state?.teams?.blue?.characters?.some((ch) => String(ch?.name || "").toLowerCase() === lower)) return "blue";
+        return null;
+      };
 
-        if (targetTeam !== wendigoTeam) {
-          matchState.teams[targetTeam].characters = matchState.teams[
-            targetTeam
-          ].characters.filter((char) => char.id !== ch.id);
-
-          matchState.teams[wendigoTeam].characters.push(ch);
-        }
-
-        // Сам Вендиго "исчезает" до окончания эффекта
-        // (например, ставим координаты вне поля)
-        itself.position = { x: 0, y: 0 };
+      const target = Array.isArray(targetsAtPoint) ? targetsAtPoint[0] : null;
+      if (!target || target.currentHP <= 0) {
+        addActionLog?.(`Вселение: цель не выбрана.`);
+        return;
       }
+      const wendigoTeamKey = teamKeyOf(matchState, wendigoName) || wendigo.team;
+      const targetTeamKey = teamKeyOf(matchState, target.name) || target.team;
+      if (!wendigoTeamKey || !targetTeamKey) {
+        addActionLog?.(`Вселение: не удалось определить команды кастера/цели.`);
+        return;
+      }
+      if (targetTeamKey === wendigoTeamKey) {
+        addActionLog?.(`Вселение: нельзя вселиться в союзника (${target.name}).`);
+        return;
+      }
+
+      const maxHp = target.stats?.HP ?? 0;
+      if (!maxHp || target.currentHP > maxHp * 0.25) {
+        addActionLog?.(`Вселение: у цели должно быть ≤25% HP.`);
+        return;
+      }
+
+      const originalTeam = targetTeamKey;
+      const wendigoTeam = wendigoTeamKey;
+      const wendigoStateObj = findByName(matchState, wendigoName) || wendigo;
+      const wendigoOriginalPos = wendigoStateObj.position ?? wendigo.position;
+      const wendigoPrevMove = wendigoStateObj.functions?.movementAbility !== false;
+      const wendigoPrevAction = wendigoStateObj.functions?.actionAbility !== false;
+
+      // Вендиго «исчезает» и не может действовать/двигаться
+      {
+        const w = findByName(matchState, wendigoName) || wendigo;
+        w.functions = w.functions || {};
+        w.functions.movementAbility = false;
+        w.functions.actionAbility = false;
+        w.position = null;
+      }
+
+      // Перенос цели в команду Вендиго (смена вложенности + поля team)
+      const targetLower = String(target.name || "").toLowerCase();
+      matchState.teams[originalTeam].characters =
+        (matchState.teams[originalTeam].characters || []).filter(
+          (ch) => String(ch?.name || "").toLowerCase() !== targetLower
+        );
+      // Берём актуальный объект цели из state (на случай, если targetsAtPoint был копией)
+      const targetStateObj = findByName(matchState, target.name) || target;
+      targetStateObj.team = wendigoTeam;
+      matchState.teams[wendigoTeam].characters = matchState.teams[wendigoTeam].characters || [];
+      // Убираем дубликаты по имени перед добавлением
+      matchState.teams[wendigoTeam].characters =
+        (matchState.teams[wendigoTeam].characters || []).filter(
+          (ch) => String(ch?.name || "").toLowerCase() !== targetLower
+        );
+      matchState.teams[wendigoTeam].characters.push(targetStateObj);
+
+      addActionLog?.(`Вендиго вселяется в ${targetStateObj.name} на 4 хода.`);
+
+      // Будем помнить последнюю валидную позицию цели (на случай смерти)
+      let lastKnownTargetPos = targetStateObj.position;
+      let finalized = false;
+
+      const isBlockedCell = (pos, state) => {
+        const [x, y] = pos.split("-").map(Number);
+        const cell = selectedMap.map?.[y - 1]?.[x - 1];
+        if (!cell) return true;
+        // Для "выпадения" используем те же проходимые типы, что и для направления луча/кастинга в UI
+        const walkable = new Set([
+          "empty",
+          "blue portal",
+          "red portal",
+          "healing zone",
+          "bush",
+        ]);
+        if (!walkable.has(cell.initial)) return true;
+        if ((state.objectsOnMap || []).some((obj) => obj.position === pos)) return true;
+        return false;
+      };
+      const isOccupiedByCharacter = (pos, state) => {
+        const all = [
+          ...(state.teams?.red?.characters || []),
+          ...(state.teams?.blue?.characters || []),
+        ];
+        return all.some((ch) => ch.currentHP > 0 && ch.position === pos);
+      };
+      const findNearestFree = (centerPos, state, maxRadius = 6) => {
+        if (!centerPos || typeof centerPos !== "string") return null;
+        const [cx, cy] = centerPos.split("-").map(Number);
+        const inBounds = (x, y) =>
+          x >= 1 && x <= (selectedMap.size?.[0] || 0) && y >= 1 && y <= (selectedMap.size?.[1] || 0);
+        for (let r = 1; r <= maxRadius; r++) {
+          for (let dx = -r; dx <= r; dx++) {
+            for (let dy = -r; dy <= r; dy++) {
+              if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+              const x = cx + dx;
+              const y = cy + dy;
+              if (!inBounds(x, y)) continue;
+              const pos = `${x}-${y}`;
+              if (isBlockedCell(pos, state)) continue;
+              if (isOccupiedByCharacter(pos, state)) continue;
+              return pos;
+            }
+          }
+        }
+        return null;
+      };
+
+      const possessionEffect = addEffect(targetStateObj, {
+        name: "Одержимость Вендиго",
+        description: "Цель находится под контролем Вендиго.",
+        effectType: "negative",
+        canCancel: false,
+        typeOfEffect: "each turn",
+        turnsRemain: 4,
+        effect: (ch) => {
+          if (typeof ch.position === "string") lastKnownTargetPos = ch.position;
+          if (ch.currentHP <= 0 && !finalized) {
+            const eff = (ch.effects || []).find((e) => e.effectId === possessionEffect.effectId);
+            if (eff) eff.turnsRemain = 0;
+          }
+        },
+        consequence: (ch, state) => {
+          if (finalized) return;
+          finalized = true;
+
+          // Возвращаем цель в исходную команду (вложенность + поле team)
+          const chLower = String(ch?.name || "").toLowerCase();
+          state.teams[wendigoTeam].characters =
+            (state.teams[wendigoTeam].characters || []).filter(
+              (c) => String(c?.name || "").toLowerCase() !== chLower
+            );
+          const targetNow = findByName(state, ch.name) || ch;
+          targetNow.team = originalTeam;
+          state.teams[originalTeam].characters = state.teams[originalTeam].characters || [];
+          state.teams[originalTeam].characters =
+            (state.teams[originalTeam].characters || []).filter(
+              (c) => String(c?.name || "").toLowerCase() !== chLower
+            );
+          state.teams[originalTeam].characters.push(targetNow);
+
+          // «Выпадение» Вендиго рядом с целью (или фолбэк на старую позицию Вендиго)
+          const spawnCenter =
+            (typeof ch.position === "string" ? ch.position : lastKnownTargetPos) || wendigoOriginalPos;
+          // Никогда не спавним на занятой клетке (иначе Вендиго "прячется" под другим персонажем в UI).
+          const tryCenters = [spawnCenter, wendigoOriginalPos].filter((p) => typeof p === "string");
+          let spawnPos = null;
+          for (const c of tryCenters) {
+            spawnPos = findNearestFree(c, state, 8);
+            if (spawnPos) break;
+          }
+          // Если совсем нет места рядом — расширяем поиск
+          if (!spawnPos && tryCenters[0]) {
+            spawnPos = findNearestFree(tryCenters[0], state, 16);
+          }
+          // Важно: правим Вендиго, найденного в актуальном state, а не замкнутую ссылку (она часто устаревает после sync).
+          const w = findByName(state, wendigoName);
+          if (w) {
+            w.position = spawnPos;
+            w.functions = w.functions || {};
+            w.functions.movementAbility = wendigoPrevMove;
+            w.functions.actionAbility = wendigoPrevAction;
+          }
+
+          addActionLog?.(
+            `Вселение завершено: ${ch.name} возвращается в ${originalTeam}, Вендиго появляется на ${spawnPos ?? "нет свободной клетки рядом"}.`
+          );
+        },
+      });
     },
   },
 
@@ -292,23 +515,23 @@ export const abilities = {
     turnsRemain: 4,
     affiliate: "neutral",
     effect: (character) => {
-      const initialDamage = character.currentDamage - 50
-      character.currentDamage = 50
-      character.advancedSettings.vampirism += 50
+      const prevDamage = character.currentDamage;
+      character.currentDamage = 50;
+      character.advancedSettings = character.advancedSettings || {};
+      character.advancedSettings.vampirism = (character.advancedSettings.vampirism || 0) + 50;
       addEffect(character, {
         name: "Жажда крови Вендиго",
         description: "Вендиго наносит лишь 50 урона, и восстанавливает 50 HP себе",
-        effectType: "positive",
+        effectType: "neutral",
         canCancel: true,
         typeOfEffect: "one time",
         turnsRemain: 4,
-        initialDamage,
         /* выполняется каждый ход, если нужно */
         effect: () => { },                   // agility увеличили 1 раз — больше делать нечего
         /* снимаем бафф */
         consequence: (ch) => {
-          ch.advancedSettings.vampirism -= 50;
-          ch.currentDamage += initialDamage;
+          ch.advancedSettings.vampirism = (ch.advancedSettings.vampirism || 0) - 50;
+          ch.currentDamage = prevDamage;
         }
       })
     },
@@ -920,42 +1143,29 @@ export const abilities = {
     stats: {
       beamWidth: 3,
     },
-    // Условно: пролетает 8 клеток прямо, на 1 клетку по бокам — стан
+    // Пролетает 8 клеток вперёд, оглушая задетых врагов на 1 ход
     beamEffect: function (targets) {
-      // Применяем эффект оглушения только к врагам
-      targets.forEach((ch) => {
-        // Проверяем, что персонаж существует
-        if (!ch) return;
-
-        // Ищем персонажа "Подрывница" в командах
-        let bombgirl = null;
-        let bombgirlTeam = null;
-
-        ["red", "blue"].forEach(teamKey => {
-          const foundChar = matchState.teams[teamKey].characters.find(character => character.name === "Подрывница");
-          if (foundChar) {
-            bombgirl = foundChar;
-            bombgirlTeam = teamKey;
-          }
+      const caster = this?.caster;
+      if (!caster) return;
+      (targets || []).forEach((ch) => {
+        if (!ch || ch.currentHP <= 0) return;
+        if (ch.team === caster.team) return;
+        ch.functions = ch.functions || {};
+        ch.functions.movementAbility = false;
+        ch.functions.actionAbility = false;
+        addEffect(ch, {
+          name: "Оглушение (Подрывница)",
+          description: "Не может перемещаться и действовать 1 ход.",
+          effectType: "negative",
+          canCancel: false,
+          typeOfEffect: "one time",
+          turnsRemain: 1,
+          effect: () => { },
+          consequence: (t) => {
+            t.functions.movementAbility = true;
+            t.functions.actionAbility = true;
+          },
         });
-
-        // Определяем, к какой команде принадлежит текущий персонаж
-        let charTeam = null;
-        ["red", "blue"].forEach(teamKey => {
-          if (matchState.teams[teamKey].characters.includes(ch)) {
-            charTeam = teamKey;
-          }
-        });
-
-        // Если персонаж из другой команды, чем Подрывница
-        if (bombgirlTeam && charTeam && bombgirlTeam !== charTeam) {
-          // Отключаем возможность двигаться и действовать
-          ch.functions.movementAbility = false;
-          ch.functions.actionAbility = false;
-          // Возвращаем возможность двигаться и действовать после окончания эффекта
-          ch.functions.movementAbility = true;
-          ch.functions.actionAbility = true;
-        }
       });
     },
   },

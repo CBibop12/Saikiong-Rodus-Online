@@ -3,7 +3,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Copy, ArrowLeft, Plus, MessageSquare, LogOut } from 'lucide-react';
 import "../styles/styles.css";
-import { CHAT_BASE, getChat, roomRoutes, userRoutes } from '../routes';
+import { getChat, roomRoutes, userRoutes } from '../routes';
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? 'https://saikiong-rodus-08b1dee9bafb.herokuapp.com';
 import { useDebounce } from 'use-debounce';
@@ -176,10 +176,20 @@ const Room = () => {
                 auth: {
                     token: localStorage.getItem('srUserToken'),
                 },
+                // Если backend не поддерживает socket.io (404 на /socket.io), не спамим бесконечными ретраями
+                reconnectionAttempts: 2,
+                reconnectionDelay: 1000,
+                timeout: 5000,
+                transports: ['websocket'],
             });
 
             socket.on('connect_error', (err) => {
                 console.error('WebSocket error:', err.message);
+                // Типично: "xhr poll error" + 404 на /socket.io => сервер не socket.io.
+                // Отключаемся, чтобы не забивать консоль бесконечными ретраями.
+                if (String(err?.message || '').includes('xhr poll error') || String(err?.message || '').includes('404')) {
+                    try { socket.disconnect(); } catch { /* ignore */ }
+                }
             });
 
             // Новое сообщение
