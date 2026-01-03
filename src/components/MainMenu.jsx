@@ -274,7 +274,20 @@ const MainMenu = () => {
           {loadingUser ? (
             <div className="loading-user">Загрузка данных пользователя...</div>
           ) : userError ? (
-            <div className="error-user">{userError}</div>
+            <div className="error-user">
+              {userError}
+              {String(userError).includes("Токен не найден") && (
+                <a
+                  href="https://saikiongrodus.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="error-user-button"
+                  style={{ marginLeft: 12, display: "inline-block" }}
+                >
+                  Войти на сайт
+                </a>
+              )}
+            </div>
           ) : user ? (
             <div className="user-profile-card">
               <div className="user-avatar">

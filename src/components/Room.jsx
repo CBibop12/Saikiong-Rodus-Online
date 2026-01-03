@@ -19,6 +19,9 @@ import CharacterPositioning from './CharacterPositioning';
 import { maps } from '../maps';
 import ChatConsole from './ChatConsole';
 
+const DEFAULT_AVATAR =
+    'https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/logo.png';
+
 const Room = () => {
     const { roomCode } = useParams();
     const navigate = useNavigate();
@@ -55,6 +58,17 @@ const Room = () => {
     const messagesEndRef = useRef(null);
     const socketRef = useRef(null); // сокет для приватного чата
     const [messagesLoading, setMessagesLoading] = useState(false);
+
+    const getAvatarSrc = (avatar) => {
+        if (typeof avatar === 'string' && avatar.trim()) return avatar;
+        return DEFAULT_AVATAR;
+    };
+
+    const handleAvatarError = (e) => {
+        // единый fallback для битых ссылок/пустых аватарок
+        e.currentTarget.onerror = null;
+        e.currentTarget.src = DEFAULT_AVATAR;
+    };
 
     useEffect(() => {
         document.body.classList.toggle('scroll-lock', showCharacterInfo);
@@ -223,11 +237,20 @@ const Room = () => {
 
     // Авто-поиск при вводе
     useEffect(() => {
+        // В режиме "друзья/подписчики/подписки" показываем полный список даже без ввода
+        if (!showSearch) return;
+
         if (debouncedQuery.trim()) {
             performSearch(debouncedQuery);
-        } else {
-            setSearchResults([]);
+            return;
         }
+
+        if (selectedFilter !== 'all') {
+            performSearch('');
+            return;
+        }
+
+        setSearchResults([]);
     }, [debouncedQuery, selectedFilter]);
 
     const loadMessages = async () => {
@@ -267,12 +290,29 @@ const Room = () => {
     };
 
     const performSearch = async (queryStr = searchQuery) => {
-        if (!queryStr.trim()) return;
         setIsSearching(true);
         try {
+            const trimmed = (queryStr ?? '').trim();
             const filterParam = selectedFilter === 'all' ? undefined : selectedFilter;
-            const users = await userRoutes.searchUsers(queryStr.trim(), filterParam);
-            setSearchResults(users);
+
+            // Если строка поиска пустая, но выбран фильтр, показываем весь список связей
+            if (!trimmed && filterParam) {
+                let users = [];
+                if (filterParam === 'friends') users = await userRoutes.getFriends();
+                else if (filterParam === 'followers') users = await userRoutes.getFollowers();
+                else if (filterParam === 'following') users = await userRoutes.getFollowing();
+                setSearchResults(Array.isArray(users) ? users : []);
+                return;
+            }
+
+            // Если пусто и фильтр "Все" — ничего не ищем
+            if (!trimmed && !filterParam) {
+                setSearchResults([]);
+                return;
+            }
+
+            const users = await userRoutes.searchUsers(trimmed, filterParam);
+            setSearchResults(Array.isArray(users) ? users : []);
         } catch (err) {
             console.error('Ошибка поиска пользователей:', err);
             setError('Не удалось выполнить поиск');
@@ -640,7 +680,11 @@ const Room = () => {
                         {/* Левая сторона - создатель */}
                         <div className="player-slot creator">
                             <div className="player-avatar">
-                                <img src={room?.participants?.find(p => p.role === 'admin')?.avatar || user?.avatar} alt="Аватар" />
+                                <img
+                                    src={getAvatarSrc(room?.participants?.find(p => p.role === 'admin')?.avatar || user?.avatar)}
+                                    alt="Аватар"
+                                    onError={handleAvatarError}
+                                />
                             </div>
                             <div className="player-info">
                                 <h3>{room?.participants?.find(p => p.role === 'admin' && p.username === user?.username) ? 'Создатель' : 'Второй игрок'}</h3>
@@ -652,7 +696,11 @@ const Room = () => {
                         {(room?.participants?.length > 1 && !showSearch) ? (
                             <div className="player-slot second">
                                 <div className="player-avatar">
-                                    <img src={secondPlayer?.avatar || 'https://pdjerosynzbsjmwqdxbr.supabase.co/storage/v1/object/public/images/images/logo.png'} alt="Аватар" />
+                                    <img
+                                        src={getAvatarSrc(secondPlayer?.avatar)}
+                                        alt="Аватар"
+                                        onError={handleAvatarError}
+                                    />
                                 </div>
                                 <div className="player-info">
                                     <h3>{room?.participants?.find(p => p.role === 'admin' && p.username === secondPlayer?.username) ? 'Создатель' : 'Второй игрок'}</h3>
@@ -676,7 +724,7 @@ const Room = () => {
                                 </div>
                             </div>
                         ) : (
-                            <div className="player-slot second">
+                            <div className="player-slot second search-mode">
                                 <h3>Поиск игрока</h3>
                                 <div className="search-container filter-row">
                                     <select onChange={(e) => setSelectedFilter(e.target.value)}>
@@ -694,7 +742,11 @@ const Room = () => {
                                     {searchResults.map((result) => (
                                         <div key={result._id} className="result-item">
                                             <div className="result-user">
-                                                <img src={result.avatar} alt="Аватар" />
+                                                <img
+                                                    src={getAvatarSrc(result.avatar)}
+                                                    alt="Аватар"
+                                                    onError={handleAvatarError}
+                                                />
                                                 <p>{result.username}</p>
                                             </div>
                                             <div className="result-buttons">
